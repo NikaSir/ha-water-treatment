@@ -1,0 +1,19 @@
+{
+  "domain": "water_treatment",
+  "name": "NikaS Water Treatment",
+  "codeowners": [
+    "@NikaSir"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "http",
+    "panel_custom",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/NikaSir/ha-water-treatment",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/NikaSir/ha-water-treatment/issues",
+  "requirements": [],
+  "version": "0.1.0-beta001"
+}

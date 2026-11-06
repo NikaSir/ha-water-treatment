@@ -1,0 +1,10 @@
+{
+  "name": "ha-water-treatment",
+  "version": "0.1.0-beta001",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check && node --check custom_components/water_treatment/frontend/water-treatment-panel.js && node tests/treatment_split_harness.mjs && node tests/filter_ui_harness.mjs && python scripts/check_nikas_ui_standard.py && python -m unittest discover -s tests -v"
+  }
+}
