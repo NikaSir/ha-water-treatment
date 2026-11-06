@@ -1,0 +1,50 @@
+name: Repository checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+
+      - name: Validate deterministic frontend
+        run: |
+          node scripts/build.mjs --check
+          node --check custom_components/water_treatment/frontend/src/zoom-controller.js
+          node --check custom_components/water_treatment/frontend/src/water-treatment-panel-core.js
+          node --check custom_components/water_treatment/frontend/water-treatment-panel.js
+          node tests/treatment_split_harness.mjs
+          node tests/filter_ui_harness.mjs
+          python scripts/check_nikas_ui_standard.py
+
+      - name: Validate integration contract
+        run: python -m unittest discover -s tests -v
+
+      - name: Reject tracked credentials
+        shell: bash
+        run: |
+          forbidden="$(git ls-files | grep -E '(^|/)(secrets\.yaml|\.env($|\.)|.*\.(pem|key|p12)$)' | grep -v -E '(^|/)\.env\.example$' || true)"
+          if [ -n "$forbidden" ]; then
+            echo 'Forbidden credential/key-like files are tracked:'
+            echo "$forbidden"
+            exit 1
+          fi

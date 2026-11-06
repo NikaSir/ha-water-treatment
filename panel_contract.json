@@ -1,0 +1,24 @@
+{
+  "contract_version": "1.1",
+  "id": "water-treatment",
+  "owner": "water_treatment",
+  "panel_root": "/dashboard-water-treatment",
+  "entry_route": "/dashboard-water-treatment",
+  "safe_return_route": "/home/overview",
+  "visible_entry_owner": "integration.sidebar",
+  "ui_version": "0.1.0-beta001",
+  "read_only": false,
+  "tabs": [
+    "filters",
+    "softener",
+    "quality"
+  ],
+  "entities": {
+    "drinking_total": "sensor.schetchik_vody_svd_20_0020989_pokazaniia"
+  },
+  "storage": {
+    "key": "water_treatment.filters",
+    "legacy_read_only": "water_accounting.filters",
+    "migration": "guarded-once"
+  }
+}

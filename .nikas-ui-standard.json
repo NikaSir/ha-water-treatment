@@ -1,0 +1,304 @@
+{
+  "version": "2.2",
+  "navigation_contract_version": "1.3",
+  "standard_path": "docs/NIKAS_SPECIALIZED_PANEL_UI_STANDARD.md",
+  "standard_sha256": "e150c4ce087635c0cbc25031a6ce1b8489ba0902da3745335af88457484963dc",
+  "navigation_contract_path": "docs/NIKAS_PANEL_NAVIGATION_CONTRACT.md",
+  "navigation_contract_sha256": "04c81cb498de3bd9ac35b7e70ed8a90fa4376ed3a31bcedb1fe5cc3cb53e05a6",
+  "role": "specialized",
+  "artifact_kind": "production",
+  "runtime_files": [
+    "custom_components/water_treatment/frontend/water-treatment-panel.js"
+  ],
+  "production_entrypoint": "custom_components/water_treatment/frontend/water-treatment-panel.js",
+  "header_return_runtime_path": "custom_components/water_treatment/frontend/water-treatment-panel.js",
+  "build_source_files": [
+    "templates/shell_v2/nikas-specialized-shell.js",
+    "custom_components/water_treatment/frontend/src/zoom-controller.js",
+    "custom_components/water_treatment/frontend/src/treatment-ui.js",
+    "custom_components/water_treatment/frontend/src/water-treatment-panel-core.js",
+    "custom_components/water_treatment/frontend/src/styles.css",
+    "scripts/build.mjs"
+  ],
+  "ui_version": "0.1.0-beta001",
+  "web_component": "nikas-water-treatment-panel",
+  "bundle_contract": {
+    "autonomous": true,
+    "runtime_imports": false,
+    "deterministic": true,
+    "cache_busting": "ui_version"
+  },
+  "data_truth": {
+    "entity_source": "integration_or_ha_registry",
+    "unknown_unavailable": "explicit",
+    "invented_entity_ids": false,
+    "fixed_entity_ids": "tested_public_contract_only",
+    "command_policy": "refresh_only",
+    "command_markers": [
+      "await this._hass.callService(\"homeassistant\", \"update_entity\""
+    ]
+  },
+  "header_return": {
+    "button_marker": "id=\"return-source\"",
+    "version_marker": "'<small>UI v' + escapeHtml(config.uiVersion) + '</small>",
+    "focus_marker": ".nikas-shell__title:focus-visible",
+    "pressed_marker": ".nikas-shell__title:active"
+  },
+  "title_plaque_reference": {
+    "implementation": "S8 OMNI",
+    "implementation_source": "NikaSir/ha-s8-omni",
+    "width": "min(360px,100%)",
+    "height_px": 52,
+    "padding_px": "5 14",
+    "radius_px": 16,
+    "primary_background_mix_percent": 5,
+    "primary_border_mix_percent": 24,
+    "shadow": "0 5px 16px rgba(23,45,76,.06)"
+  },
+  "panel_identity": {
+    "title": "Водоподготовка"
+  },
+  "shell_scroll_guard": {
+    "implementation_version": "2.1",
+    "strategy": "capture_non_passive_host_boundary_guard",
+    "scroll_chaining": false,
+    "multitouch_passthrough": true,
+    "movement_threshold_px": 4,
+    "cleanup_on_disconnect": true
+  },
+  "shell_contract": {
+    "version": "2.1",
+    "host_boundary": "ha-panel",
+    "header_body_px": 60,
+    "peer_selector_px": 52,
+    "bottom_nav_body_px": 64,
+    "content_max_width_px": 1280,
+    "coordinate_tolerance_px": 2,
+    "scroll_boundary_guard": "capture-non-passive-touchmove",
+    "specialized_tab_range": [
+      3,
+      5
+    ],
+    "viewport_matrix": {
+      "phone_portrait": "430x932",
+      "phone_landscape": "932x430",
+      "tablet_portrait": "768x1024",
+      "tablet_landscape": "1024x768",
+      "desktop": "1440x900"
+    }
+  },
+  "shell_source": {
+    "path": "templates/shell_v2/nikas-specialized-shell.js",
+    "sha256": "b7dbb84bb2f950fce75591266d6de7dbff824f4d480f455f0b8cbb0866a1c176",
+    "delivery": "vendored-build-time",
+    "runtime_dependency": false
+  },
+  "header_reference": {
+    "implementation": "S8 OMNI",
+    "implementation_source": "NikaSir/ha-s8-omni",
+    "background_primary_mix_percent": 97,
+    "divider_mix_percent": 70,
+    "blur_px": 18,
+    "saturation_percent": 130,
+    "side_action_size_px": 44,
+    "side_action_radius_px": 16,
+    "side_action_border_divider_mix_percent": 72,
+    "side_action_shadow": "0 7px 20px rgba(23,45,76,.08)"
+  },
+  "peer_device_status_lamp_reference": {
+    "implementation": "Stark SolarPower",
+    "visual_lineage": "StarLine",
+    "diameter_px": 9,
+    "halo_px": 3,
+    "states": {
+      "good": "green",
+      "warning": "orange",
+      "fault": "red",
+      "unknown": "gray"
+    },
+    "state_priority": [
+      "fault",
+      "warning",
+      "good",
+      "unknown"
+    ],
+    "selection_is_independent": true,
+    "update_mode": "point-patch",
+    "accessible_status_required": true
+  },
+  "connection_plaque_reference": {
+    "implementation": "S8 OMNI",
+    "implementation_source": "NikaSir/ha-s8-omni",
+    "padding_px": "11 12",
+    "radius_px": 18,
+    "lamp_px": 10,
+    "column_gap_px": 9,
+    "main_font": "16px/700",
+    "freshness_font": "13px/600",
+    "success_background_mix_percent": 11,
+    "status_background_mix_percent": 10,
+    "neutral_background_mix_percent": 8,
+    "status_border_mix_percent": 30,
+    "neutral_border_mix_percent": 28,
+    "shadow": "0 4px 14px rgba(0,0,0,.055)",
+    "contract_version": "1.1",
+    "width_px": 168,
+    "height_px": 58,
+    "box_sizing": "border-box",
+    "top_px": 13,
+    "right_px": 13,
+    "coordinate_origin": "card_inner_border_edge",
+    "font_family": "-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Arial,sans-serif",
+    "main_line_height_px": 17,
+    "freshness_line_height_px": 14,
+    "text_gap_px": 3,
+    "geometry_overrides_allowed": false
+  },
+  "refresh_action_feedback": {
+    "version": "1.1",
+    "status": "required",
+    "applies_when": "refresh_action_present",
+    "path": "docs/NIKAS_REFRESH_ACTION_CONTRACT.md",
+    "sha256": "69f73e9d5949a2564f2bcef3059039cc339c12c9e8dfe71cfa9f24a45b78d2a8",
+    "busy_animation": "rotate",
+    "minimum_visible_ms": 900,
+    "busy_until": "request_settled_and_minimum_elapsed",
+    "duplicate_activation": "blocked",
+    "aria_busy": true,
+    "failure_notification": true,
+    "reduced_motion": "static_busy_surface",
+    "execution_scope": "read_only_telemetry",
+    "freshness": "accepted_sample_only",
+    "update_mode": "point-patch",
+    "preserve": [
+      "header",
+      "active_tab",
+      "peer",
+      "work_viewport",
+      "scroll",
+      "zoom",
+      "editor_draft"
+    ],
+    "test_source": "production_entrypoint",
+    "required_cases": [
+      "activation",
+      "fast_success",
+      "slow_success",
+      "duplicate_activation",
+      "failure_cleanup",
+      "unavailable_targets",
+      "render_stability",
+      "context_preservation",
+      "reduced_motion",
+      "truthful_freshness",
+      "result_presentation",
+      "retry_during_result",
+      "partial_failure",
+      "disconnect_cleanup"
+    ],
+    "browser_acceptance_required": true,
+    "completion_feedback": {
+      "visible_ms": 1400,
+      "success_icon": "mdi:check",
+      "success_color": "#43a047",
+      "error_icon": "mdi:alert-circle-outline",
+      "error_color": "#e53935",
+      "idle_icon": "mdi:refresh",
+      "idle_color": "var(--primary-color)",
+      "success_semantics": "all_required_requests_explicitly_succeeded",
+      "retry_during_result": true,
+      "cancel_previous_timer_on_retry": true,
+      "preserve_result_deadline_on_render": true,
+      "disconnect_cleanup": true,
+      "geometry_unchanged": true,
+      "accessible_result_name": true
+    }
+  },
+  "hacs_publication": {
+    "version": "1.0",
+    "status": "required",
+    "applies_when": "release_driven_hacs_distribution",
+    "path": "docs/NIKAS_HACS_PUBLICATION_CONTRACT.md",
+    "sha256": "d9d42be0fa3fab5915cb76399a0a451a4fcf740ec6da6137ee560c7ec5f3774a",
+    "version_source": "custom_components/<domain>/manifest.json",
+    "delivery_boundary": "matching_release",
+    "main_is_delivery": false,
+    "release_version": "exact_manifest_version",
+    "release_target": "merged_main_commit_with_manifest_version",
+    "idempotent_publish": true,
+    "default_custom_assets": false,
+    "publication_permission": "contents_write_publication_workflow_only",
+    "unsupported_branch_install_after_rejection": true,
+    "states": {
+      "merged_main": "code_accepted",
+      "matching_release": "published_to_hacs_channel",
+      "hacs_installable": "delivered",
+      "device_acceptance": "accepted_in_operation"
+    },
+    "required_cases": [
+      "manifest_version",
+      "release_exact_match",
+      "release_target",
+      "idempotent_publish",
+      "hacs_validation",
+      "no_release_assets_by_default",
+      "delivery_acceptance"
+    ],
+    "github_releases": true,
+    "alternate_delivery_acceptance": "not_applicable"
+  },
+  "knowledge_base_path": "docs/NIKAS_ENGINEERING_KNOWLEDGE_BASE.md",
+  "frontend_delivery_path": "docs/SPECIALIZED_PANEL_FRONTEND_RELEASE_STANDARD.md",
+  "panel_lifecycle": {
+    "version": "1.0",
+    "status": "required",
+    "path": "docs/NIKAS_PANEL_LIFECYCLE_CONTRACT.md",
+    "sha256": "939b58f7451d0819ad155975466162383e74c99c78040107f88cf667673ea32a",
+    "route_owner": "installed_configuration",
+    "registration_before_device_io": true,
+    "initial_failure": "panel_remains_registered",
+    "unavailable_rendering": "fail_closed",
+    "recovery": "coordinator_or_config_entry_retry",
+    "required_cases": [
+      "registration_before_refresh",
+      "initial_failure_preserves_route",
+      "offline_bootstrap",
+      "retry_recovery",
+      "route_collision",
+      "unload_ownership",
+      "generated_manifest_ownership"
+    ]
+  },
+  "connection_decoration_contract": {
+    "version": "1.1",
+    "status": "required_when_present",
+    "path": "docs/NIKAS_CONNECTION_DECORATION_CONTRACT.md",
+    "sha256": "0cbc29e20fd811af3e14821ca59adbe737d2e22a9a8a6822472d52cc8ed83036",
+    "production_browser_acceptance_required": true,
+    "state_layout_delta_px": 0,
+    "measurement_noise_px": 0.1,
+    "geometry_tolerance_px": 1
+  },
+  "blue_corner_reference": {
+    "width_px": 205,
+    "height_px": 205,
+    "top_px": -92,
+    "right_px": -70,
+    "base_color": "#03A9D9",
+    "background": "rgba(3,169,217,0.07)",
+    "opacity": 1,
+    "radius": "50%",
+    "coordinate_origin": "card_inner_border_edge",
+    "clip": "persistent_card_decoration_layer",
+    "theme_primary_dependent": false,
+    "geometry_overrides_allowed": false,
+    "pointer_events": "none",
+    "aria_hidden": true
+  },
+  "header_navigation": {
+    "contract_version": "1.3",
+    "mode": "declared-parent",
+    "main_parent_route": "/home/overview",
+    "ambient_return_authority": false
+  }
+}

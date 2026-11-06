@@ -1,0 +1,14 @@
+{
+  "title": "NikaS Water Treatment",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Water Treatment",
+        "description": "Add the read-only NikaS water accounting panel backed by existing Home Assistant entities."
+      }
+    },
+    "abort": {
+      "already_configured": "The panel is already configured."
+    }
+  }
+}
