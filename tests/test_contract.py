@@ -21,10 +21,11 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(manifest['dependencies'], ['http','panel_custom','websocket_api'])
         self.assertEqual({constants['UI_VERSION'], constants['INTEGRATION_VERSION'],
             manifest['version'], panel['ui_version'], contract['ui_version'], profile['ui_version'],
-            package['version']}, {'0.1.0-beta001'})
+            package['version']}, {'0.2.0-beta001'})
         self.assertEqual(panel['panel_root'], '/dashboard-water-treatment')
         self.assertEqual(contract['entry_route'], panel['panel_root'])
-        self.assertEqual(contract['tabs'], ['filters','softener','quality'])
+        self.assertEqual(contract['tabs'], ['overview','filters','softener','quality'])
+        self.assertEqual(panel['preferred_view'], 'overview')
         self.assertEqual(constants['ENTITY_MAP'], contract['entities'])
         self.assertEqual(len(constants['ENTITY_MAP']), 1)
         self.assertEqual(panel['owner'], 'water_treatment')
