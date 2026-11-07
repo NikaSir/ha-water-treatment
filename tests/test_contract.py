@@ -21,7 +21,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(manifest['dependencies'], ['http','panel_custom','websocket_api'])
         self.assertEqual({constants['UI_VERSION'], constants['INTEGRATION_VERSION'],
             manifest['version'], panel['ui_version'], contract['ui_version'], profile['ui_version'],
-            package['version']}, {'0.2.0-beta002'})
+            package['version']}, {'0.2.0-beta003'})
         self.assertEqual(panel['panel_root'], '/dashboard-water-treatment')
         self.assertEqual(contract['entry_route'], panel['panel_root'])
         self.assertEqual(contract['tabs'], ['overview','filters','softener','quality','settings'])

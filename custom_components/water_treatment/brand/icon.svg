@@ -1,18 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Водоподготовка">
-  <defs>
-    <linearGradient id="water" x1="48" y1="30" x2="205" y2="225" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#16a4ff"/>
-      <stop offset="1" stop-color="#0870df"/>
-    </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="9" stdDeviation="9" flood-color="#064e98" flood-opacity=".24"/>
-    </filter>
-  </defs>
-  <rect width="256" height="256" rx="58" fill="#eef8ff"/>
-  <path fill="url(#water)" filter="url(#shadow)" d="M128 29C107 60 63 111 63 154a65 65 0 0 0 130 0c0-43-44-94-65-125Z"/>
-  <circle cx="128" cy="151" r="39" fill="#fff" fill-opacity=".96"/>
-  <path d="M99 154a29 29 0 0 1 58-1" fill="none" stroke="#b8dfff" stroke-width="10" stroke-linecap="round"/>
-  <path d="M128 151l18-17" fill="none" stroke="#0878e8" stroke-width="9" stroke-linecap="round"/>
-  <circle cx="128" cy="151" r="7" fill="#0878e8"/>
-  <path d="M104 174h48" fill="none" stroke="#0878e8" stroke-width="8" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="Водоподготовка">
+  <!--
+    Glyph: Pictogrammers Material Design Icons, filter-outline (Apache-2.0).
+    Source: https://github.com/Templarian/MaterialDesign/blob/2424e748e0cc63ab7b9c095a099b9fe239b737c0/svg/filter-outline.svg
+    The original path is unchanged; presentation adds scaling, white fill and a blue tile.
+    See README.md and LICENSE in this directory.
+  -->
+  <rect x="8" y="8" width="240" height="240" rx="54" fill="#008fb5"/>
+  <path fill="#fff" transform="translate(20 20) scale(9)" d="M15,19.88C15.04,20.18 14.94,20.5 14.71,20.71C14.32,21.1 13.69,21.1 13.3,20.71L9.29,16.7C9.06,16.47 8.96,16.16 9,15.87V10.75L4.21,4.62C3.87,4.19 3.95,3.56 4.38,3.22C4.57,3.08 4.78,3 5,3V3H19V3C19.22,3 19.43,3.08 19.62,3.22C20.05,3.56 20.13,4.19 19.79,4.62L15,10.75V19.88M7.04,5L11,10.06V15.58L13,17.58V10.05L16.96,5H7.04Z"/>
 </svg>

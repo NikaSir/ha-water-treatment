@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta002",
+  uiVersion: "0.2.0-beta003",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -378,18 +378,15 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       ["softening", "ЭКСПЕРТ Смягчение"], ["postcarbon", "ЭКСПЕРТ Посткарбон"]];
     const input = (id, label, type, extra) => '<label>' + label + '<input id="' + id
       + '" type="' + type + '" ' + (extra || '') + '></label>';
-    return '<section class="card filter-settings"><h2>Фильтры питьевой воды</h2>'
-      + '<p>Магистральный — по счётчику питьевой воды. Полив не учитывается.</p>'
-      + '<p>Профили BB20 и ЭКСПЕРТ Комплекс выбраны для обслуживания; маркировку установленных картриджей нужно сверить отдельно.</p>'
-      + '<p data-filter-message role="status">Загрузка настроек…</p>'
-      + '<button type="button" data-filter-action="reload">Обновить данные фильтров</button></section>'
+    return '<p class="filter-feedback" data-filter-message role="status" aria-live="polite">Загрузка данных…</p>'
       + cards.map(([key, title]) => '<section class="card filter-card" data-filter-card="' + key + '">'
         + '<h2>' + title + '</h2><strong data-filter-status="' + key + '">Нет данных</strong>'
         + '<p data-filter-detail="' + key + '"></p>'
         + '<div class="filter-form">' + input('date-' + key, 'Дата последней замены', 'date')
         + (key === 'main' ? input('baseline-main', 'Показание при замене, м³', 'number', 'min="0" step="0.001"') : '')
         + '</div><div class="filter-actions"><button type="button" data-filter-action="record" data-filter="' + key + '">Сохранить дату'
-        + '</button><button type="button" data-filter-action="replace" data-filter="' + key + '">Картридж заменён</button></div></section>').join('');
+        + '</button><button type="button" data-filter-action="replace" data-filter="' + key + '">Картридж заменён</button></div>'
+        + '<p class="filter-feedback" data-filter-feedback="' + key + '" role="status" aria-live="polite"></p></section>').join('');
   }
 
   _settingsMarkup() {
@@ -402,7 +399,10 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + input('filter-months', 'Срок, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
       + '<label>Контроль<select id="filter-mode"><option value="volume">По объёму</option><option value="time">По времени</option>'
       + '<option value="both">Что наступит раньше</option></select></label></div>'
-      + '<p>Профили БАРЬЕР: механика — 100 м³; нитка — 200 м³. Срок 6 месяцев для нитки — начальная настройка, не подтверждённая рекомендация производителя. Объём и срок можно изменить.</p></section>'
+      + '<details class="filter-help"><summary>Как считается ресурс</summary>'
+      + '<p>Магистральный — по счётчику питьевой воды. Полив не учитывается.</p>'
+      + '<p>Профиль BB20 выбран для обслуживания; маркировку установленного картриджа нужно сверить отдельно.</p>'
+      + '<p>Профили БАРЬЕР: механика — 100 м³; нитка — 200 м³. Срок 6 месяцев для нитки — начальная настройка, не подтверждённая рекомендация производителя. Объём и срок можно изменить.</p></details></section>'
       + '<section class="card filter-settings"><h2>Настройки ЭКСПЕРТ Комплекс</h2><div class="filter-form">'
       + input('filter-people', 'Количество пользователей', 'number', 'min="1" max="20" step="1" required')
       + input('filter-hardness', 'На входе БАРЬЕР после Ёлки, °Ж (мг-экв/л)', 'number', 'min="0.0001" max="100" step="0.0001"')
@@ -411,7 +411,9 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + input('months-ferrostop', 'Ферростоп, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
       + input('months-softening', 'Смягчение вручную, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
       + input('months-postcarbon', 'Посткарбон, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
-      + '</div><p>Расчёт для 1–3 пользователей и жёсткости до 5 мг-экв/л; не более 6 месяцев. Вне таблицы задайте срок вручную. Начальные сроки Ферростопа и Посткарбона — 6 месяцев. Полмесяца = 15 дней.</p>'
+      + '</div><details class="filter-help"><summary>Профиль и сроки обслуживания</summary>'
+      + '<p>Профиль ЭКСПЕРТ Комплекс выбран для обслуживания; маркировку установленных картриджей нужно сверить отдельно.</p>'
+      + '<p>Расчёт для 1–3 пользователей и жёсткости до 5 мг-экв/л; не более 6 месяцев. Вне таблицы задайте срок вручную. Начальные сроки Ферростопа и Посткарбона — 6 месяцев. Полмесяца = 15 дней.</p></details>'
       + '<button type="button" data-filter-action="settings">Сохранить настройки</button>'
       + '<p data-filter-settings-message role="status" aria-live="polite">Загрузка настроек…</p>'
       + '<p>Настройки не сбрасывают даты и расход. Изменять их может администратор HA.</p></section>';
@@ -442,7 +444,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._filterLoadError = false;
       this._filterData = data;
       this._paintFilters(true, guard);
-      this._setText("[data-filter-message]", "Данные водоподготовки актуальны");
+      this._setText("[data-filter-message]", "");
       this._setText("[data-filter-settings-message]", "Данные водоподготовки актуальны");
     } catch (error) {
       this._filterData = null;
@@ -506,6 +508,10 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   _recordFilterEdit(id) {
     this._filterControlEdits.set(id, (this._filterControlEdits.get(id) || 0) + 1);
     this._filterDirtyControls.add(id);
+    const filter = id === 'baseline-main' ? 'main' : id.startsWith('date-') ? id.slice(5) : null;
+    if (['main','ferrostop','softening','postcarbon'].includes(filter)) {
+      this._setText('[data-filter-feedback="' + filter + '"]', '');
+    }
     const section = waterDraftSection(id);
     if (section && this._filterData && !this._filterDraftBases.has(section)) {
       this._filterDraftBases.set(section, {revision: this._filterData.revision,
@@ -577,18 +583,22 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     });
   }
 
-  _filterMessage(message, action) {
-    this._setText('[data-filter-message]', message);
+  _filterMessage(message, action, filter) {
     if (action === 'settings') this._setText('[data-filter-settings-message]', message);
-    if (action.startsWith('salt_')) this._setText('[data-salt-message]', message);
-    if (action.startsWith('treatment_')) this._setText('[data-treatment-message]', message);
-    if (action === 'treatment_gh') this._setText('[data-gh-message]', message);
+    else if (action.startsWith('salt_')) this._setText('[data-salt-message]', message);
+    else if (action.startsWith('treatment_')) {
+      this._setText('[data-treatment-message]', message);
+      if (action === 'treatment_gh') this._setText('[data-gh-message]', message);
+    } else if (['main','ferrostop','softening','postcarbon'].includes(filter)) {
+      this._setText('[data-filter-feedback="' + filter + '"]', message);
+    } else this._setText('[data-filter-message]', message);
   }
 
   async _filterAction(button) {
     const action = button.dataset.filterAction;
     if (action === 'reload') { this._filtersFilled = false; return this._loadFilters(true); }
     if (this._filterBusy) return;
+    const feedback = message => this._filterMessage(message, action, button.dataset.filter);
     const root = this.shadowRoot;
     const editingRevision = this._filterEditingRevision(action);
     const saltDraftRevision = this._saltDraftRevision;
@@ -596,11 +606,11 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     let payload;
     if (action.startsWith('treatment_') || ['salt_service','salt_remove','salt_regeneration'].includes(action)) {
       try { payload = waterTreatmentPayload(root, action); }
-      catch (error) { this._filterMessage('Не сохранено: ' + error.message, action); return; }
+      catch (error) { feedback('Не сохранено: ' + error.message); return; }
       if (payload === null) return;
     } else if (action.startsWith('salt_')) {
       const ids = action === 'salt_settings' ? ['salt-days','salt-dose'] : action === 'salt_topup' ? ['salt-kg'] : [];
-      for (const id of ids) { const node=root.querySelector('#'+id); if (!node.value || !node.reportValidity()) { this._filterMessage('Заполните параметры соли',action); return; } }
+      for (const id of ids) { const node=root.querySelector('#'+id); if (!node.value || !node.reportValidity()) { feedback('Заполните параметры соли'); return; } }
       payload = action === 'salt_settings' ? {check_days:Number(value('salt-days')),dose:Number(value('salt-dose'))}
         : action === 'salt_topup' ? {kg:Number(value('salt-kg'))} : {level:value('salt-level')};
       const basis = root.querySelector('#salt-dose-basis');
@@ -619,9 +629,9 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       payload = { filter: button.dataset.filter };
       if (action === 'record') {
         payload.date = value('date-' + payload.filter);
-        if (!payload.date) { this._setText('[data-filter-message]', 'Укажите дату замены'); return; }
+        if (!payload.date) { feedback('Укажите дату замены'); return; }
         if (payload.filter === 'main') {
-          if (!value('baseline-main')) { this._setText('[data-filter-message]', 'Укажите показание при замене'); return; }
+          if (!value('baseline-main')) { feedback('Укажите показание при замене'); return; }
           payload.baseline = Number(value('baseline-main'));
         }
       }
@@ -631,7 +641,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     this._filterBusy = true;
     button.disabled = true;
     window.clearTimeout(this._filterTimer);
-    this._filterMessage('Сохраняю…', action);
+    feedback('Сохраняю…');
     try {
       // A top-up appends to the current history. Settings edits retain the revision
       // they were based on, so a background read cannot hide another user's edit.
@@ -658,11 +668,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         if (this._saltDraftRevision === saltDraftRevision && Number(input.value) === payload.kg) input.value = '';
       }
       resetWaterTreatmentEvent(this, action, fillGuard);
-      this._filterMessage(action === 'salt_topup'
+      const newerCartridgeDraft = ['record','replace'].includes(action) && Array.from(fillGuard.ids)
+        .some(id => (this._filterControlEdits.get(id) || 0) !== (fillGuard.edits.get(id) || 0));
+      feedback(action === 'salt_topup'
         ? 'Сохранено: досыпано ' + this._formatNumber(payload.kg, 1) + ' кг. Дата и масса показаны выше.'
-        : 'Сохранено', action);
+        : newerCartridgeDraft ? 'Запись сохранена. Новые изменения ещё не сохранены.' : 'Сохранено');
     } catch (error) {
-      this._filterMessage('Не сохранено: ' + (error.message || String(error)), action);
+      feedback('Не сохранено: ' + (error.message || String(error)));
     } finally {
       this._filterBusy = false;
       button.disabled = false;
