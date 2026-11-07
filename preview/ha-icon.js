@@ -8,6 +8,7 @@ if (!customElements.get('ha-icon')) {
     'mdi:filter-outline':'<path d="M3 4h18l-7 8v8l-4-2v-6Z"/>',
     'mdi:water-sync':'<rect x="5" y="7" width="14" height="14" rx="3"/><path d="M8 7V3h8v4M5 11h14"/>',
     'mdi:flask-outline':'<path d="M9 3h6M10 3v6L4 19q-1 2 2 2h12q3 0 2-2L14 9V3M7 15h10"/>',
+    'mdi:cog-outline':'<path d="M9 2h6v2.6l1.8 1 2.3-1.3 3 5.2-2.3 1.3v2.4l2.3 1.3-3 5.2-2.3-1.3-1.8 1V22H9v-2.6l-1.8-1-2.3 1.3-3-5.2 2.3-1.3v-2.4L1.9 9.5l3-5.2 2.3 1.3L9 4.6Z"/><circle cx="12" cy="12" r="3.2"/>',
     'mdi:chevron-right':'<path d="m9 5 7 7-7 7"/>',
     'mdi:alert-circle-outline':'<circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01"/>',
     'mdi:information-outline':'<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10h.01"/>',

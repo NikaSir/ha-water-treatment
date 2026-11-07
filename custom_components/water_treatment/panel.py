@@ -47,6 +47,7 @@ PANEL_METADATA = {
         ["filters", "mdi:filter-outline", "Фильтры"],
         ["softener", "mdi:water-sync", "Ёлка"],
         ["quality", "mdi:flask-outline", "Жёсткость"],
+        ["settings", "mdi:cog-outline", "Настройки"],
     ],
 }
 

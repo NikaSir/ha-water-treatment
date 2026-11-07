@@ -113,31 +113,30 @@ test('equally urgent overdue replacements select the earliest missed deadline', 
   assert.equal(view.notice.tone, 'due');
 });
 
-test('healthy equipment offers the nearest known check or calendar replacement', () => {
-  for (const [mode, mainDays, saltDays, expectedView, expectedFilter] of [
-    ['both', 30, 5, 'softener', null],
-    ['time', 20, 30, 'filters', 'main'],
-    ['both', 30, 40, 'filters', 'softening'],
+test('healthy future maintenance stays on the cards without an action banner', () => {
+  for (const [mode, mainDays, saltDays] of [
+    ['both', 30, 5],
+    ['time', 20, 30],
+    ['both', 30, 40],
   ]) {
     const data = overviewFixture();
     data.settings.main.mode = mode;
     data.status.main.days = mainDays;
     data.salt_status.days = saltDays;
     const view = model(data);
-    assert.ok(view.notice, 'A known future action should be available');
-    assert.equal(view.notice.view, expectedView);
-    assert.equal(view.notice.filter, expectedFilter);
-    assert.equal(view.notice.tone, 'ok');
+    assert.equal(view.notice, null, 'A future healthy-state deadline is not an action needed now');
+    assert.match(view.main.detail, new RegExp(String(mainDays)));
+    assert.match(view.barrier.rows[1].text, /24 дня/);
+    assert.match(view.softener.nextSaltCheck, new RegExp(String(saltDays)));
   }
 });
 
-test('volume control never uses the inactive calendar deadline as an action date', () => {
+test('volume control never promotes its inactive calendar deadline to a warning', () => {
   const data = overviewFixture();
   Object.assign(data.status.main, {days: 1, deadline: '2026-11-08'});
   const view = model(data);
-  assert.ok(view.notice);
-  assert.equal(view.notice.view, 'softener');
-  assert.match(view.notice.detail, /5 дней/);
+  assert.equal(view.notice, null);
+  assert.doesNotMatch(view.main.detail, /день|дня|дней/);
 });
 
 test('a volume warning keeps its urgency without borrowing the inactive deadline', () => {
@@ -153,7 +152,7 @@ test('a volume warning keeps its urgency without borrowing the inactive deadline
   assert.doesNotMatch(view.notice.detail, /день|дня|дней/);
 });
 
-test('uncertainty and overdue work remain ahead of healthy future actions', () => {
+test('uncertainty and overdue work still request attention with healthy future dates', () => {
   const data = overviewFixture();
   Object.assign(data.status.main, {state: 'unknown', used: null, remaining: null, percent: null});
   assert.equal(model(data).notice.filter, 'main');
@@ -182,6 +181,39 @@ test('topup alone never becomes a known salt balance and zero estimate stays zer
   assert.match(model(data).softener.saltLabel, /расчёт/i);
 });
 
+test('checking salt today clears the banner and keeps the next check on the softener card', () => {
+  const data = overviewFixture();
+  data.settings.salt.last_checked = data.today;
+  data.settings.salt.check_days = 12;
+  data.salt_status.days = 12;
+  const view = model(data);
+  assert.equal(view.notice, null);
+  assert.equal(view.softener.label, 'Соль проверена');
+  assert.equal(view.softener.saltDetail, 'Проверка 07.11.2026');
+  assert.equal(view.softener.nextSaltCheck, 'Следующая проверка через 12 дней');
+});
+
+test('a current manual inspection can have a next check without inventing an unknown salt estimate', () => {
+  const data = overviewFixture();
+  data.salt_status.estimated_remaining_kg = null;
+  const view = model(data);
+  assert.equal(view.softener.saltKg, null);
+  assert.equal(view.softener.saltDetail, 'Нет данных для расчёта');
+  assert.equal(view.softener.nextSaltCheck, 'Следующая проверка через 5 дней');
+  assert.equal(view.notice, null);
+});
+
+test('due, low, empty and unknown inspections never display a future-check reassurance', () => {
+  for (const state of ['check', 'low', 'empty', 'unknown']) {
+    const data = overviewFixture();
+    Object.assign(data.salt_status, {state, days: state === 'check' ? 0 : 5});
+    const view = model(data);
+    assert.equal(view.softener.nextSaltCheck, '');
+    assert.equal(view.notice.view, 'softener');
+    assert.match(view.notice.title, /соли|соль/);
+  }
+});
+
 test('zero estimated salt requests a stock check even after a recent enough-level check', () => {
   const data = overviewFixture();
   data.settings.salt.estimated_kg = 0;
@@ -189,6 +221,7 @@ test('zero estimated salt requests a stock check even after a recent enough-leve
   const view = model(data);
   assert.equal(view.softener.saltKg, 0);
   assert.equal(view.softener.tone, 'warning');
+  assert.equal(view.softener.nextSaltCheck, '');
   assert.match(view.softener.label, /проверить/i);
   assert.equal(view.notice.view, 'softener');
   assert.equal(view.notice.tone, 'warning');
@@ -256,11 +289,13 @@ test('read failure and disconnect clear stale values, recovery restores them', (
     const view = model(data, options);
     assert.equal(view.main.used, null);
     assert.equal(view.softener.saltKg, null);
+    assert.equal(view.softener.nextSaltCheck, '');
     assert.notEqual(view.main.tone, 'ok');
     assert.equal(view.notice.action, 'reload');
   }
   assert.equal(model(data).main.used, 12);
   assert.equal(model(data).softener.saltKg, 4);
+  assert.equal(model(data).softener.nextSaltCheck, 'Следующая проверка через 5 дней');
 });
 
 test('overview building does not mutate settings, history order or statuses', () => {

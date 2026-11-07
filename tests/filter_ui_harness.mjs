@@ -25,6 +25,7 @@ function fixture() {
   }
   p._filterData={revision:3};p._paintFilters=()=>{};
   p.shadowRoot.nodes.set('[data-filter-message]',new NodeMock());
+  p.shadowRoot.nodes.set('[data-filter-settings-message]',new NodeMock());
   return p;
 }
 test('settings submit custom controls and revision without replacement baseline',async()=>{
@@ -33,17 +34,26 @@ test('settings submit custom controls and revision without replacement baseline'
   assert.equal(sent.payload.main.volume,200);assert.equal(sent.payload.people,3);
   assert.equal(sent.payload.hardness,4.1);assert.equal(sent.revision,3);
   assert.equal(sent.payload.main.baseline,undefined);assert.equal(sent.payload.main.date,undefined);
+  assert.equal(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,'Сохранено');
 });
 test('failed save preserves loaded revision and reports failure',async()=>{
   const p=fixture();p._hass={callWS:async()=>{throw new Error('conflict');}};
   await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
   assert.equal(p._filterData.revision,3);
   assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/Не сохранено: conflict/);
+  assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не сохранено: conflict/);
 });
 test('refresh failure clears stale success rather than showing resource as current',async()=>{
   const p=fixture();p._hass={callWS:async()=>{throw new Error('offline');}};
   await p._loadFilters();assert.equal(p._filterData,null);
   assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/offline/);
+  assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не удалось получить данные.*offline/);
+});
+
+test('a successful read updates the settings page load status',async()=>{
+  const p=fixture();p._hass={callWS:async()=>({revision:4})};
+  await p._loadFilters();
+  assert.equal(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,'Данные водоподготовки актуальны');
 });
 
 test('salt topup submits mass only and clears input on success',async()=>{
@@ -161,6 +171,7 @@ test('a settings edit keeps its original revision across a background read to de
   read.resolve(saltSnapshot(4));await Promise.all([loading,saving]);
   assert.equal(submitted.revision,3);
   assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/Не сохранено.*Настройки изменились/);
+  assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не сохранено.*Настройки изменились/);
 });
 
 test('a newly entered identical topup mass remains a draft after an earlier save',async()=>{
