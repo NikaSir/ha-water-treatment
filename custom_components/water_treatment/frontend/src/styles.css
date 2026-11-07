@@ -1073,6 +1073,11 @@ h2 {
 .filter-form .filter-checkbox input { width: 24px; min-height: 24px; flex: 0 0 24px; }
 .filter-card button, .filter-settings button { min-height: 44px; padding: 10px 14px; border: 1px solid #008fb5; border-radius: 10px; color: var(--primary-text-color, #eee); background: rgba(0, 188, 212, .12); font-size: 14px; }
 .filter-card button:disabled, .filter-settings button:disabled { opacity: .45; }
+.filter-feedback { margin: 0; font-size: 14px; line-height: 1.5; color: var(--primary-text-color, #eee); overflow-wrap: anywhere; }
+.filter-feedback:empty { display: none; }
+.filter-card .filter-feedback:not(:empty) { margin: 12px 0 0; color: var(--primary-text-color, #eee); }
+.filter-help { margin: 12px 0; }
+.filter-help summary { padding: 12px 0; font-size: 14px; cursor: pointer; }
 @media (max-width: 440px) { .filter-form { grid-template-columns: minmax(0, 1fr); } }
 
 /* Overview cards own only the domain content inside the canonical shell. */

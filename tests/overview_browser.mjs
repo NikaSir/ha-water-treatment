@@ -24,7 +24,7 @@ metadata=next(node.value for node in tree.body if isinstance(node,ast.Assign) an
 tabs=next(value for key,value in zip(metadata.keys,metadata.values) if isinstance(key,ast.Constant) and key.value=='tabs')
 print(json.dumps(ast.literal_eval(tabs)))
 `,resolve(root,'custom_components/water_treatment/panel.py')],{encoding:'utf8'}));
-const output = resolve(root, '.superpowers/sdd/2026-11-07-overview-settings/browser');
+const output = resolve(root, '.superpowers/sdd/2026-11-07-filter-screen-branding/browser');
 await mkdir(output, {recursive: true});
 const fixture = overviewFixture();
 fixture.settings.salt.check_days = 12;
@@ -44,6 +44,7 @@ callWS:async message=>{
   if(!window.allowedWrites.includes(message.action))throw new Error('Unexpected write from read-only overview');
   if(window.failWrite)throw new Error('disk full');
   if(message.revision!==window.fixture.revision)throw new Error('Настройки изменились');
+  if(window.pendingWrite)await window.pendingWrite;
   // Acknowledge only the form fields under test. Backend calculations have their own tests.
   const payload=message.payload,settings=window.fixture.settings;
   if(message.action==='settings'){
@@ -54,6 +55,10 @@ callWS:async message=>{
     settings.salt.level=payload.level;settings.salt.last_checked=window.fixture.today;
     settings.salt.history.push({action:'check',date:window.fixture.today,level:payload.level});
     Object.assign(window.fixture.salt_status,{state:payload.level==='enough'?'ok':payload.level,days:settings.salt.check_days});
+  }else if(message.action==='record'){
+    const cartridge=payload.filter==='main'?settings.main:settings.cartridges[payload.filter];
+    cartridge.date=payload.date;
+    if(payload.filter==='main')cartridge.baseline=payload.baseline;
   }
   window.fixture.revision++;
   return structuredClone(window.fixture);
@@ -279,6 +284,71 @@ try {
   assert.deepEqual(await page.evaluate(()=>serviceCalls),[],'Form writes use the journal API without physical-device service calls');
   assert.deepEqual(errors,[]);
   console.log('PASS recording a salt check removes the current reminder and moves the next check to the card');
+
+  await by('.tabbar [data-view="filters"]').click();
+  assert.equal(await by('.page-filters .filter-settings').count(),0);
+  assert.equal(await by('.page-filters [data-filter-action="reload"]').count(),0);
+  assert.equal(await by('[data-filter-message]').isVisible(),false);
+  assert.equal(await by('.page-filters').evaluate(view=>[...view.children].find(node=>getComputedStyle(node).display!=='none').dataset.filterCard),'main');
+  for(const theme of ['light','dark'])for(const width of [320,390,430]) {
+    await page.setViewportSize({width,height:844});
+    await page.evaluate(theme=>{document.documentElement.dataset.theme=theme;panel.shadowRoot.querySelector('.canvas-viewport').scrollTop=0;},theme);
+    await tick();
+    const overflow=await by('.page-filters').evaluate(view=>[...view.querySelectorAll('*')]
+      .filter(node=>node.getBoundingClientRect().width && node.scrollWidth>node.clientWidth+2 && getComputedStyle(node).display!=='inline')
+      .map(node=>node.id || node.className || node.tagName));
+    assert.deepEqual(overflow,[],`filters overflow at ${width}px ${theme}`);
+    await page.screenshot({path:resolve(output,`filters-${width}-${theme}.png`)});
+  }
+  await page.setViewportSize({width:390,height:844});
+  await by('.tabbar [data-view="settings"]').click();
+  await by('.filter-help summary').first().click();
+  assert.match(await by('.filter-help').first().innerText(),/Полив не учитывается/);
+  assert.match(await by('.filter-help').first().innerText(),/маркировку установленного картриджа/);
+  console.log('PASS Filters begins with the main cartridge in narrow light/dark layouts; explanations moved to Settings');
+
+  await by('.tabbar [data-view="filters"]').click();
+  const postcarbonSave=by('[data-filter="postcarbon"][data-filter-action="record"]');
+  const postcarbonFeedback=by('[data-filter-feedback="postcarbon"]');
+  await by('#date-postcarbon').fill('');
+  await postcarbonSave.click();
+  assert.equal(await postcarbonFeedback.innerText(),'Укажите дату замены');
+  assert.equal(await by('[data-filter-message]').isVisible(),false);
+  await by('#date-postcarbon').fill('2026-11-05');
+  await page.evaluate(()=>{window.allowedWrites.push('record');window.failWrite=true;});
+  await postcarbonSave.click();
+  await page.waitForFunction(()=>!panel._filterBusy);
+  assert.match(await postcarbonFeedback.innerText(),/Не сохранено: disk full/);
+  await page.evaluate(()=>panel._loadFilters());
+  assert.equal(await by('#date-postcarbon').inputValue(),'2026-11-05');
+  assert.match(await postcarbonFeedback.innerText(),/Не сохранено: disk full/);
+  assert.equal(await by('[data-filter-feedback="main"]').isVisible(),false);
+  await page.evaluate(()=>{window.failWrite=false;});
+  await postcarbonSave.click();
+  await page.waitForFunction(()=>!panel._filterBusy);
+  assert.equal(await postcarbonFeedback.innerText(),'Сохранено');
+  assert.equal(await page.evaluate(()=>fixture.settings.cartridges.postcarbon.date),'2026-11-05');
+  await by('#date-postcarbon').fill('2026-11-06');
+  assert.equal(await postcarbonFeedback.isVisible(),false,'A new draft must clear the previous saved acknowledgement');
+  await page.evaluate(()=>{window.pendingWrite=new Promise(resolve=>{window.releaseWrite=resolve;});});
+  await postcarbonSave.click();
+  await page.waitForFunction(()=>panel._filterBusy);
+  await by('#date-postcarbon').fill('2026-11-07');
+  await page.evaluate(()=>{window.releaseWrite();window.pendingWrite=null;});
+  await page.waitForFunction(()=>!panel._filterBusy);
+  assert.equal(await page.evaluate(()=>fixture.settings.cartridges.postcarbon.date),'2026-11-06');
+  assert.equal(await by('#date-postcarbon').inputValue(),'2026-11-07');
+  assert.match(await postcarbonFeedback.innerText(),/Новые изменения ещё не сохранены/);
+  await page.evaluate(async()=>{window.failRead=true;await panel._loadFilters();});
+  assert.match(await by('[data-filter-message]').innerText(),/Не удалось получить данные: offline/);
+  assert.equal(await by('[data-filter-message]').isVisible(),true);
+  await page.evaluate(async()=>{window.failRead=false;await panel._loadFilters();});
+  assert.equal(await by('[data-filter-message]').isVisible(),false);
+  assert.match(await postcarbonFeedback.innerText(),/Новые изменения ещё не сохранены/);
+  assert.equal(await by('#date-postcarbon').inputValue(),'2026-11-07');
+  assert.deepEqual(await page.evaluate(()=>serviceCalls),[]);
+  assert.deepEqual(errors,[]);
+  console.log('PASS cartridge feedback survives polling, distinguishes newer drafts, and clears recovered read errors');
   console.log('Browser acceptance PASS; screenshots:',output);
 } finally {
   await browser.close();

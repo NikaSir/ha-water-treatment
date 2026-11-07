@@ -26,6 +26,10 @@ function fixture() {
   p._filterData={revision:3};p._paintFilters=()=>{};
   p.shadowRoot.nodes.set('[data-filter-message]',new NodeMock());
   p.shadowRoot.nodes.set('[data-filter-settings-message]',new NodeMock());
+  for (const key of ['main','ferrostop','softening','postcarbon']) {
+    p.shadowRoot.nodes.set('[data-filter-feedback="'+key+'"]',new NodeMock());
+    const date=new NodeMock();date.value='2026-11-05';p.shadowRoot.nodes.set('#date-'+key,date);
+  }
   return p;
 }
 test('settings submit custom controls and revision without replacement baseline',async()=>{
@@ -40,7 +44,7 @@ test('failed save preserves loaded revision and reports failure',async()=>{
   const p=fixture();p._hass={callWS:async()=>{throw new Error('conflict');}};
   await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
   assert.equal(p._filterData.revision,3);
-  assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/Не сохранено: conflict/);
+  assert.equal(p.shadowRoot.querySelector('[data-filter-message]').textContent,'');
   assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не сохранено: conflict/);
 });
 test('refresh failure clears stale success rather than showing resource as current',async()=>{
@@ -52,8 +56,57 @@ test('refresh failure clears stale success rather than showing resource as curre
 
 test('a successful read updates the settings page load status',async()=>{
   const p=fixture();p._hass={callWS:async()=>({revision:4})};
+  p.shadowRoot.querySelector('[data-filter-message]').textContent='Не удалось получить данные: offline';
   await p._loadFilters();
+  assert.equal(p.shadowRoot.querySelector('[data-filter-message]').textContent,'');
   assert.equal(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,'Данные водоподготовки актуальны');
+});
+
+test('replacement date validation stays beside the affected cartridge',async()=>{
+  const p=fixture();p.shadowRoot.querySelector('#date-postcarbon').value='';
+  p._hass={callWS:async()=>{throw new Error('validation must prevent a write');}};
+  await p._filterAction({dataset:{filterAction:'record',filter:'postcarbon'},disabled:false});
+  assert.equal(p.shadowRoot.querySelector('[data-filter-feedback="postcarbon"]').textContent,'Укажите дату замены');
+  assert.equal(p.shadowRoot.querySelector('[data-filter-feedback="main"]').textContent,'');
+  assert.equal(p.shadowRoot.querySelector('[data-filter-message]').textContent,'');
+});
+
+test('failed cartridge save remains beside its draft through a healthy poll and successful retry',async()=>{
+  const p=fixture();let failWrite=true;const sent=[];
+  p._hass={callWS:async msg=>{sent.push(msg);if(msg.action && failWrite)throw new Error('disk full');return {revision:msg.action?4:3};}};
+  const button={dataset:{filterAction:'record',filter:'postcarbon'},disabled:false};
+  await p._filterAction(button);
+  const feedback=p.shadowRoot.querySelector('[data-filter-feedback="postcarbon"]');
+  assert.match(feedback.textContent,/Не сохранено: disk full/);
+  assert.equal(p.shadowRoot.querySelector('#date-postcarbon').value,'2026-11-05');
+  await p._loadFilters();
+  assert.match(feedback.textContent,/Не сохранено: disk full/);
+  assert.equal(p.shadowRoot.querySelector('[data-filter-message]').textContent,'');
+  failWrite=false;await p._filterAction(button);
+  assert.equal(feedback.textContent,'Сохранено');
+  assert.equal(sent.at(-1).payload.filter,'postcarbon');
+  assert.equal(sent.at(-1).payload.date,'2026-11-05');
+  assert.equal(sent.at(-1).revision,3);
+});
+
+test('editing a cartridge clears the acknowledgement of its previous saved value',()=>{
+  const p=fixture();
+  for (const [id,key] of [['date-postcarbon','postcarbon'],['baseline-main','main']]) {
+    p._filterMessage('Сохранено','record',key);
+    p._recordFilterEdit(id);
+    assert.equal(p.shadowRoot.querySelector('[data-filter-feedback="'+key+'"]').textContent,'');
+    assert.ok(p._filterDirtyControls.has(id));
+  }
+});
+
+test('a cartridge acknowledgement distinguishes an edit made while its write was pending',async()=>{
+  const p=fixture();const write=deferred();p._hass={callWS:()=>write.promise};
+  const saving=p._filterAction({dataset:{filterAction:'record',filter:'postcarbon'},disabled:false});
+  p.shadowRoot.querySelector('#date-postcarbon').value='2026-11-06';
+  p._recordFilterEdit('date-postcarbon');
+  write.resolve({revision:4});await saving;
+  assert.match(p.shadowRoot.querySelector('[data-filter-feedback="postcarbon"]').textContent,/Новые изменения ещё не сохранены/);
+  assert.ok(p._filterDirtyControls.has('date-postcarbon'));
 });
 
 test('salt topup submits mass only and clears input on success',async()=>{
@@ -170,7 +223,7 @@ test('a settings edit keeps its original revision across a background read to de
   const saving=p._filterAction({dataset:{filterAction:'settings'},disabled:false});
   read.resolve(saltSnapshot(4));await Promise.all([loading,saving]);
   assert.equal(submitted.revision,3);
-  assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/Не сохранено.*Настройки изменились/);
+  assert.equal(p.shadowRoot.querySelector('[data-filter-message]').textContent,'');
   assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не сохранено.*Настройки изменились/);
 });
 
@@ -378,7 +431,7 @@ test('a background read preserves an already dirty section and its original conf
   assert.equal(Number(p.shadowRoot.querySelector('#filter-volume').value),100);
   assert.equal(p.shadowRoot.querySelector('#filter-people').value,'4');
   await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
-  assert.equal(sent.revision,3);assert.match(p.shadowRoot.querySelector('[data-filter-message]').textContent,/Не сохранено/);
+  assert.equal(sent.revision,3);assert.match(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,/Не сохранено/);
 });
 
 test('a successfully saved settings section becomes eligible for later remote refreshes',async()=>{
