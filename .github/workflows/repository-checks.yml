@@ -34,6 +34,7 @@ jobs:
           node --check custom_components/water_treatment/frontend/water-treatment-panel.js
           node tests/treatment_split_harness.mjs
           node tests/filter_ui_harness.mjs
+          node tests/overview_model.mjs
           python scripts/check_nikas_ui_standard.py
 
       - name: Validate integration contract
