@@ -58,6 +58,10 @@ try {
   assert.equal(await page.evaluate(() => window.panel._view), 'overview', 'New panel must open the overview');
   assert.deepEqual(await by('.tabbar button small').allTextContents(), ['Обзор','Фильтры','Ёлка','Жёсткость']);
   assert.match(await by('[data-overview="main-used"]').innerText(), /12/);
+  assert.equal(await page.getByRole('button', {name:/Магистральный.*Ресурс есть.*12 м³/}).count(), 1,
+    'A focused overview card must expose its current readings in its accessible name');
+  assert.equal(await page.getByRole('button', {name:/Ёлка.*Соль проверена.*4 кг/}).count(), 1);
+  assert.equal(await page.getByRole('button', {name:/БАРЬЕР.*Смягчение.*24 дня/}).count(), 1);
   assert.equal(await by('.overview-card img').count(), 3);
   await page.waitForFunction(() => [...window.panel.shadowRoot.querySelectorAll('.overview-card img')].every(image => image.complete && image.naturalWidth > 0));
   await page.evaluate(() => {window.mounted = [...panel.shadowRoot.querySelectorAll('.overview-card,.overview-card img,.app-header,.tabbar')];});

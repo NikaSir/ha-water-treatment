@@ -1010,7 +1010,7 @@ function waterOverviewMarkup(version) {
     + '<span class="overview-notice-copy"><strong data-overview="notice-title"></strong>'
     + '<span data-overview="notice-detail"></span></span><ha-icon icon="mdi:chevron-right"></ha-icon></button>'
     + '<button type="button" class="card overview-card" data-overview-card="main" data-status="unknown"'
-    + ' data-view="filters" data-overview-filter="main" aria-label="Магистральный фильтр: открыть обслуживание">'
+    + ' data-view="filters" data-overview-filter="main">'
     + head('main', 'Магистральный', 'Механический фильтр')
     + '<span class="overview-card-body">' + image('main-filter.png', 'main')
     + '<span class="overview-details"><span class="overview-field-label">После замены</span>'
@@ -1020,7 +1020,7 @@ function waterOverviewMarkup(version) {
     + '<span data-overview-progress></span></span><span class="overview-detail" data-overview="main-detail">Нет данных для расчёта</span>'
     + '</span></span></button>'
     + '<button type="button" class="card overview-card" data-overview-card="softener" data-status="unknown"'
-    + ' data-view="softener" aria-label="Ёлка: открыть журнал и обслуживание">'
+    + ' data-view="softener">'
     + head('softener', 'Ёлка', 'Умягчитель')
     + '<span class="overview-card-body">' + image('elka-cabinet.png', 'softener')
     + '<span class="overview-details"><span class="overview-field-label">Последняя регенерация</span>'
@@ -1031,7 +1031,7 @@ function waterOverviewMarkup(version) {
     + '<span class="overview-detail" data-overview="salt-detail">Нет данных для расчёта</span></span></span>'
     + '<span class="overview-gh"><span>GH после «Ёлки»</span><span data-overview="gh-value">Замеров пока нет</span></span></button>'
     + '<button type="button" class="card overview-card" data-overview-card="barrier" data-status="unknown"'
-    + ' data-view="filters" data-overview-filter="ferrostop" aria-label="БАРЬЕР: открыть обслуживание картриджей">'
+    + ' data-view="filters" data-overview-filter="ferrostop">'
     + head('barrier', 'БАРЬЕР', 'Три ступени')
     + '<span class="overview-card-body">' + image('barrier-three-stage.png', 'barrier')
     + '<span class="overview-details overview-cartridges">'
