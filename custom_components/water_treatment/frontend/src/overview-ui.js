@@ -3,6 +3,9 @@ function waterOverviewMarkup(version) {
   const asset = name => '/water_treatment_panel/assets/' + name + '?v=' + encodeURIComponent(version);
   const image = (name, kind) => '<span class="overview-illustration overview-illustration--' + kind + '">'
     + '<img src="' + asset(name) + '" alt="" width="110" height="140" decoding="async" draggable="false"></span>';
+  const resource = (key, label) => '<span class="overview-resource" data-overview-resource="' + key
+    + '" data-known="false" role="progressbar" aria-label="' + label + '" aria-valuemin="0" aria-valuemax="100">'
+    + '<span data-overview-progress="' + key + '"></span></span>';
   const head = (key, title, subtitle) => '<span class="overview-card-heading">'
     + '<span class="overview-card-title">' + title + '</span><ha-icon icon="mdi:chevron-right"></ha-icon>'
     + '<span class="overview-card-subtitle">' + subtitle + '</span>'
@@ -19,8 +22,8 @@ function waterOverviewMarkup(version) {
     + '<span class="overview-details"><span class="overview-field-label">После замены</span>'
     + '<strong class="overview-value" data-overview="main-used">— м³</strong>'
     + '<span class="overview-field-label overview-resource-label" data-overview="main-resource-label">Ресурс по объёму</span>'
-    + '<span class="overview-resource" role="progressbar" aria-label="Оставшийся ресурс магистрального фильтра" aria-valuemin="0" aria-valuemax="100">'
-    + '<span data-overview-progress></span></span><span class="overview-detail" data-overview="main-detail">Нет данных для расчёта</span>'
+    + resource('main', 'Оставшийся ресурс магистрального фильтра')
+    + '<span class="overview-detail" data-overview="main-detail">Нет данных для расчёта</span>'
     + '</span></span></button>'
     + '<button type="button" class="card overview-card" data-overview-card="softener" data-status="unknown"'
     + ' data-view="softener">'
@@ -36,12 +39,13 @@ function waterOverviewMarkup(version) {
     + '<span class="overview-gh"><span>GH после «Ёлки»</span><span data-overview="gh-value">Замеров пока нет</span></span></button>'
     + '<button type="button" class="card overview-card" data-overview-card="barrier" data-status="unknown"'
     + ' data-view="filters" data-overview-filter="ferrostop">'
-    + head('barrier', 'БАРЬЕР', 'Три ступени')
+    + head('barrier', 'БАРЬЕР', 'Три ступени · по сроку')
     + '<span class="overview-card-body">' + image('barrier-three-stage.png', 'barrier')
     + '<span class="overview-details overview-cartridges">'
     + WATER_OVERVIEW_CARTRIDGES.map(([key, name], index) => '<span class="overview-cartridge" data-overview-cartridge="' + key + '" data-status="unknown">'
       + '<span class="overview-cartridge-number overview-cartridge-number--' + key + '">' + (index + 1) + '</span>'
-      + '<span><strong>' + name + '</strong><span class="overview-cartridge-status" data-overview="' + key + '-deadline">Нет данных</span></span></span>').join('')
+      + '<span><strong>' + name + '</strong><span class="overview-cartridge-status" data-overview="' + key + '-deadline">Нет данных</span>'
+      + resource(key, 'Оставшийся срок: ' + name) + '</span></span>').join('')
     + '</span></span></button>';
 }
 
@@ -55,6 +59,21 @@ function paintWaterOverview(panel) {
   });
   const text = (key, value) => panel._setText('[data-overview="' + key + '"]', value, root);
   const status = (node, value) => {if (node && node.dataset.status !== value) node.dataset.status = value;};
+  const resource = (key, percent, byTime = false) => {
+    const progress = root.querySelector('[data-overview-resource="' + key + '"]');
+    const fill = progress?.querySelector('[data-overview-progress]');
+    if (!progress || !fill) return;
+    const width = (percent === null ? 0 : percent) + '%';
+    if (fill.style.width !== width) fill.style.width = width;
+    progress.dataset.known = String(percent !== null);
+    if (percent === null) {
+      progress.removeAttribute('aria-valuenow');
+      progress.setAttribute('aria-valuetext', byTime ? 'Срок неизвестен' : 'Ресурс неизвестен');
+    } else {
+      progress.setAttribute('aria-valuenow', String(Math.round(percent)));
+      progress.setAttribute('aria-valuetext', 'Осталось ' + waterOverviewNumber(percent, 0) + '%' + (byTime ? ' срока' : ''));
+    }
+  };
   for (const key of ['main', 'softener', 'barrier']) {
     status(root.querySelector('[data-overview-card="' + key + '"]'), model[key].tone);
     text(key + '-status', model[key].label);
@@ -62,21 +81,7 @@ function paintWaterOverview(panel) {
   text('main-used', waterOverviewNumber(model.main.used) + ' м³');
   text('main-resource-label', model.main.resourceLabel);
   text('main-detail', model.main.detail);
-  const progress = root.querySelector('.overview-resource');
-  const fill = root.querySelector('[data-overview-progress]');
-  if (progress && fill) {
-    const percent = model.main.percent;
-    const width = (percent === null ? 0 : percent) + '%';
-    if (fill.style.width !== width) fill.style.width = width;
-    progress.dataset.known = String(percent !== null);
-    if (percent === null) {
-      progress.removeAttribute('aria-valuenow');
-      progress.setAttribute('aria-valuetext', 'Ресурс неизвестен');
-    } else {
-      progress.setAttribute('aria-valuenow', String(Math.round(percent)));
-      progress.setAttribute('aria-valuetext', 'Осталось ' + waterOverviewNumber(percent, 0) + '%');
-    }
-  }
+  resource('main', model.main.percent);
   text('regeneration-date', waterOverviewDateText(model.softener.regenerationDate));
   text('regeneration-detail', model.softener.regenerationDetail);
   text('salt-label', model.softener.saltLabel);
@@ -91,6 +96,7 @@ function paintWaterOverview(panel) {
   for (const row of model.barrier.rows) {
     status(root.querySelector('[data-overview-cartridge="' + row.key + '"]'), row.tone);
     text(row.key + '-deadline', row.text);
+    resource(row.key, row.percent, true);
   }
   const barrier = root.querySelector('[data-overview-card="barrier"]');
   if (barrier) barrier.dataset.overviewFilter = (model.barrier.rows.find(row => row.tone === model.barrier.tone) || model.barrier.rows[0]).key;

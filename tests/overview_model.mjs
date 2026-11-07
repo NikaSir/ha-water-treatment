@@ -20,6 +20,7 @@ test('empty journal keeps resource and salt unknown instead of showing zero or g
   assert.equal(view.softener.saltKg, null);
   assert.equal(view.softener.regenerationDate, null);
   assert.ok(view.barrier.rows.every(row => row.tone === 'unknown'));
+  assert.ok(view.barrier.rows.every(row => row.percent === null));
 });
 
 test('zero used volume is shown as zero, and exhausted volume is due', () => {
@@ -90,6 +91,65 @@ test('BARRIER shows each deadline and prioritizes its overdue cartridge', () => 
   assert.equal(view.notice.filter, 'softening');
   data.status.softening.days = 0;
   assert.match(model(data).barrier.rows[1].text, /сегодня/);
+});
+
+test('BARRIER remaining resource follows each actual calendar interval independently', () => {
+  const data = overviewFixture();
+  const rows = model(data).barrier.rows;
+  assert.equal(rows[0].percent, 100 * 145 / 182);
+  assert.equal(rows[1].percent, 100 * 24 / 61);
+  assert.equal(rows[2].percent, 100 * 145 / 182);
+  Object.assign(data.status.main, {percent: 1, remaining: 1});
+  assert.deepEqual(Array.from(model(data).barrier.rows, row => row.percent), Array.from(rows, row => row.percent));
+});
+
+test('BARRIER uses actual short-month and fractional-month deadlines', () => {
+  const data = overviewFixture();
+  data.today = '2024-02-14';
+  data.settings.cartridges.ferrostop.date = '2024-01-31';
+  Object.assign(data.status.ferrostop, {days: 15, deadline: '2024-02-29'});
+  data.settings.cartridges.softening.date = '2024-02-07';
+  Object.assign(data.status.softening, {days: 8, deadline: '2024-02-22'});
+  const rows = model(data).barrier.rows;
+  assert.equal(rows[0].percent, 100 * 15 / 29);
+  assert.equal(rows[1].percent, 100 * 8 / 15);
+});
+
+test('BARRIER distinguishes full, due and overdue resource while retaining individual status colors', () => {
+  const data = overviewFixture();
+  Object.assign(data.status.ferrostop, {state: 'ok', days: 182});
+  Object.assign(data.status.softening, {state: 'warning', days: 14});
+  Object.assign(data.status.postcarbon, {state: 'due', days: 0});
+  const rows = model(data).barrier.rows;
+  assert.deepEqual(Array.from(rows, row => row.tone), ['ok', 'warning', 'due']);
+  assert.deepEqual(Array.from(rows, row => row.percent), [100, 100 * 14 / 61, 0]);
+  data.status.postcarbon.days = -3;
+  data.status.ferrostop.days = 200;
+  assert.equal(model(data).barrier.rows[2].percent, 0);
+  assert.equal(model(data).barrier.rows[0].percent, 100);
+});
+
+test('BARRIER missing or invalid calendar data and unavailable snapshots keep resource unknown', () => {
+  for (const change of [
+    data => {data.settings.cartridges.softening.date = null;},
+    data => {data.settings.cartridges.softening.date = '2026-02-30';},
+    data => {data.status.softening.deadline = null;},
+    data => {data.status.softening.deadline = '2026-02-30';},
+    data => {data.status.softening.deadline = data.settings.cartridges.softening.date;},
+    data => {data.status.softening.deadline = '2026-09-30';},
+    data => {data.status.softening.days = null;},
+    data => {data.status.softening.days = '24';},
+    data => {data.status.softening.state = 'unknown';},
+  ]) {
+    const data = overviewFixture();change(data);
+    const rows = model(data).barrier.rows;
+    assert.equal(rows[1].percent, null);
+    assert.ok(rows[0].percent > 0);
+    assert.ok(rows[2].percent > 0);
+  }
+  for (const options of [{error: true}, {connected: false}]) {
+    assert.ok(model(overviewFixture(), options).barrier.rows.every(row => row.percent === null));
+  }
 });
 
 test('equally urgent replacement warnings select the nearest calendar deadline', () => {

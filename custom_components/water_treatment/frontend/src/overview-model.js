@@ -37,6 +37,14 @@ function waterOverviewTone(state) {
   return ['ok', 'warning', 'due'].includes(state) ? state : 'unknown';
 }
 
+function waterOverviewTimePercent(installedValue, deadlineValue, days) {
+  const installed = waterOverviewDate(installedValue);
+  const deadline = waterOverviewDate(deadlineValue);
+  const duration = installed && deadline ? (Date.parse(deadline) - Date.parse(installed)) / 86400000 : null;
+  return duration > 0 && Number.isFinite(days)
+    ? Math.max(0, Math.min(100, 100 * days / duration)) : null;
+}
+
 function waterOverviewLatest(history, predicate, today) {
   let latest = null;
   for (const item of Array.isArray(history) ? history : []) {
@@ -66,10 +74,7 @@ function waterOverviewModel(snapshot, options = {}) {
   const volumePercent = used !== null && Number.isFinite(mainStatus.remaining) && Number.isFinite(mainStatus.percent)
     ? Math.max(0, Math.min(100, mainStatus.percent)) : null;
   const installed = waterOverviewDate(mainCfg.date);
-  const deadline = waterOverviewDate(mainStatus.deadline);
-  const duration = installed && deadline ? (Date.parse(deadline) - Date.parse(installed)) / 86400000 : null;
-  const timePercent = duration > 0 && Number.isFinite(mainStatus.days)
-    ? Math.max(0, Math.min(100, 100 * mainStatus.days / duration)) : null;
+  const timePercent = waterOverviewTimePercent(installed, mainStatus.deadline, mainStatus.days);
   const percent = mode === 'volume' ? volumePercent : mode === 'time' ? timePercent
     : volumePercent !== null && timePercent !== null ? Math.min(volumePercent, timePercent) : null;
   const mainTone = waterOverviewTone(mainStatus.state);
@@ -97,13 +102,14 @@ function waterOverviewModel(snapshot, options = {}) {
     const item = status[key] || {};
     const cfg = settings.cartridges?.[key] || {};
     const tone = waterOverviewTone(item.state);
+    const percent = tone === 'unknown' ? null : waterOverviewTimePercent(cfg.date, item.deadline, item.days);
     let text = waterOverviewDeadline(item.days);
     if (!waterOverviewDate(cfg.date)) text = 'Дата замены не задана';
     else if (!text) text = key === 'softening' && settings.softening_auto ? 'Нужна жёсткость или срок' : 'Срок не задан';
     if (tone === 'due') notice(80, 'Заменить картридж', 'БАРЬЕР · ' + name + ' · ' + text, 'filters', 'due', key, null, item.days);
     else if (tone === 'warning') notice(60, 'Подготовить картридж', 'БАРЬЕР · ' + name + ' · ' + text, 'filters', 'warning', key, null, item.days);
     else if (tone === 'unknown') notice(29, 'Уточнить сроки БАРЬЕР', name + ' · ' + text, 'filters', 'unknown', key);
-    return {key, name, number: index + 1, tone, text, deadline: waterOverviewDate(item.deadline)};
+    return {key, name, number: index + 1, tone, text, percent, deadline: waterOverviewDate(item.deadline)};
   });
   const barrierTone = ['due', 'warning', 'unknown', 'ok'].find(tone => rows.some(row => row.tone === tone));
   const barrier = {tone: barrierTone, rows,

@@ -1127,6 +1127,7 @@ h2 {
 .overview-cartridges { gap: 10px; }
 .overview-cartridge { --overview-status: var(--wa-muted); display: grid; grid-template-columns: 27px minmax(0, 1fr); align-items: center; gap: 10px; }
 .overview-cartridge > span:last-child { min-width: 0; }
+.overview-cartridge .overview-resource { margin: 6px 0 0; }
 .overview-cartridge strong { display: block; font-size: 15px; line-height: 1.2; font-weight: 750; }
 .overview-cartridge-number { display: grid; place-items: center; width: 27px; height: 31px; border: 2px solid; border-radius: 8px; font-size: 17px; line-height: 1; font-weight: 750; }
 .overview-cartridge-number--ferrostop { color: #e78a21; }

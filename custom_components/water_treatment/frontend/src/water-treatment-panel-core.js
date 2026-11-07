@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta003",
+  uiVersion: "0.2.0-beta004",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
