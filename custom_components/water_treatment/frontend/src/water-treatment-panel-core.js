@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta001",
+  uiVersion: "0.2.0-beta002",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -9,6 +9,7 @@ const TREATMENT_APP = Object.freeze({
     ["filters", "mdi:filter-outline", "Фильтры"],
     ["softener", "mdi:water-sync", "Ёлка"],
     ["quality", "mdi:flask-outline", "Жёсткость"],
+    ["settings", "mdi:cog-outline", "Настройки"],
   ],
   entities: Object.freeze({drinking_total:"sensor.schetchik_vody_svd_20_0020989_pokazaniia"}),
 });
@@ -309,6 +310,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     if (view === "overview") return waterOverviewMarkup(this._config().uiVersion);
     if (view === "softener") return this._saltMarkup() + waterSoftenerMarkup();
     if (view === "quality") return waterQualityMarkup();
+    if (view === "settings") return this._settingsMarkup();
     return this._filtersMarkup();
   }
 
@@ -387,8 +389,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         + '<div class="filter-form">' + input('date-' + key, 'Дата последней замены', 'date')
         + (key === 'main' ? input('baseline-main', 'Показание при замене, м³', 'number', 'min="0" step="0.001"') : '')
         + '</div><div class="filter-actions"><button type="button" data-filter-action="record" data-filter="' + key + '">Сохранить дату'
-        + '</button><button type="button" data-filter-action="replace" data-filter="' + key + '">Картридж заменён</button></div></section>').join('')
-      + '<section class="card filter-settings"><h2>Настройки магистрального фильтра</h2><div class="filter-form">'
+        + '</button><button type="button" data-filter-action="replace" data-filter="' + key + '">Картридж заменён</button></div></section>').join('');
+  }
+
+  _settingsMarkup() {
+    const input = (id, label, type, extra) => '<label>' + label + '<input id="' + id
+      + '" type="' + type + '" ' + (extra || '') + '></label>';
+    return '<section class="card filter-settings"><h2>Настройки магистрального фильтра</h2><div class="filter-form">'
       + '<label>Профиль<select id="filter-profile"><option value="mechanical">Механика BB20 · 5 мкм</option>'
       + '<option value="wound">Нитка BB20 · 10 мкм</option></select></label>'
       + input('filter-volume', 'Ресурс, м³', 'number', 'min="0.001" max="10000" step="0.001" required')
@@ -406,6 +413,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + input('months-postcarbon', 'Посткарбон, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
       + '</div><p>Расчёт для 1–3 пользователей и жёсткости до 5 мг-экв/л; не более 6 месяцев. Вне таблицы задайте срок вручную. Начальные сроки Ферростопа и Посткарбона — 6 месяцев. Полмесяца = 15 дней.</p>'
       + '<button type="button" data-filter-action="settings">Сохранить настройки</button>'
+      + '<p data-filter-settings-message role="status" aria-live="polite">Загрузка настроек…</p>'
       + '<p>Настройки не сбрасывают даты и расход. Изменять их может администратор HA.</p></section>';
   }
 
@@ -435,12 +443,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._filterData = data;
       this._paintFilters(true, guard);
       this._setText("[data-filter-message]", "Данные водоподготовки актуальны");
+      this._setText("[data-filter-settings-message]", "Данные водоподготовки актуальны");
     } catch (error) {
       this._filterData = null;
       this._filterLoadError = true;
       paintWaterOverview(this);
       this._setText("[data-filter-message]", "Не удалось получить данные: " + (error.message || String(error)));
-      for (const selector of ['[data-salt-message]', '[data-treatment-message]', '[data-gh-message]']) {
+      for (const selector of ['[data-filter-settings-message]', '[data-salt-message]', '[data-treatment-message]', '[data-gh-message]']) {
         this._setText(selector, "Не удалось получить данные: " + (error.message || String(error)));
       }
       this.shadowRoot.querySelectorAll("[data-filter-status]").forEach(node => { node.textContent = "Нет данных"; });
@@ -570,6 +579,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
 
   _filterMessage(message, action) {
     this._setText('[data-filter-message]', message);
+    if (action === 'settings') this._setText('[data-filter-settings-message]', message);
     if (action.startsWith('salt_')) this._setText('[data-salt-message]', message);
     if (action.startsWith('treatment_')) this._setText('[data-treatment-message]', message);
     if (action === 'treatment_gh') this._setText('[data-gh-message]', message);

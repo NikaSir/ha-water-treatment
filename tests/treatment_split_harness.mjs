@@ -15,7 +15,7 @@ assert.ok(Panel);
 const p=new Panel();
 assert.equal(p._config().title,'Водоподготовка');
 assert.equal(p._view,'overview');
-assert.deepEqual(Array.from(p._config().tabs,tab=>tab[0]),['overview','filters','softener','quality']);
+assert.deepEqual(Array.from(p._config().tabs,tab=>tab[0]),['overview','filters','softener','quality','settings']);
 assert.match(p._viewMarkup('overview'),/data-overview-card="main"/);
 assert.match(p._viewMarkup('overview'),/data-overview-card="softener"/);
 assert.match(p._viewMarkup('overview'),/data-overview-card="barrier"/);
@@ -25,6 +25,17 @@ assert.doesNotMatch(p._viewMarkup('filters'),/salt-kg|gh-drops/);
 assert.match(p._viewMarkup('softener'),/salt-kg/);
 assert.doesNotMatch(p._viewMarkup('softener'),/gh-drops/);
 assert.match(p._viewMarkup('quality'),/gh-drops/);
+const settingsMarkup=p._viewMarkup('settings');
+const filtersMarkup=p._viewMarkup('filters');
+for(const id of ['filter-profile','filter-volume','filter-months','filter-mode','filter-people','filter-hardness',
+  'filter-auto','months-ferrostop','months-softening','months-postcarbon']) {
+  assert.equal(settingsMarkup.split('id="'+id+'"').length-1,1,id+' must be mounted once in Settings');
+  assert.ok(!filtersMarkup.includes('id="'+id+'"'),id+' must leave Filters');
+}
+assert.match(settingsMarkup,/data-filter-settings-message/);
+assert.match(settingsMarkup,/data-filter-action="settings"/);
+assert.doesNotMatch(settingsMarkup,/data-filter-action="replace"|baseline-main|date-main/);
+assert.doesNotMatch(filtersMarkup,/data-filter-action="settings"/);
 assert.doesNotMatch(code,/recorder\/statistics_during_period|pressure_irrigation|irrigation_total|water_accounting\/filters/);
 assert.match(code,/water_treatment\/filters/);
 console.log('Treatment split: independent identity, tabs, API and drinking meter only PASS');

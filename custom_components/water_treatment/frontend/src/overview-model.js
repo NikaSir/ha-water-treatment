@@ -92,7 +92,6 @@ function waterOverviewModel(snapshot, options = {}) {
   if (mainTone === 'due') notice(80, 'Заменить картридж', 'Магистральный · ' + main.detail, 'filters', 'due', 'main', null, mainDays);
   else if (mainTone === 'warning') notice(60, 'Подготовить картридж', 'Магистральный · ' + main.detail, 'filters', 'warning', 'main', null, mainDays);
   else if (mainTone === 'unknown') notice(30, installed ? 'Проверить данные фильтра' : 'Записать замену фильтра', main.detail, 'filters', 'unknown', 'main');
-  else if (mainDays > 0) notice(10, 'Следующая замена картриджа', 'Магистральный · ' + main.detail, 'filters', 'ok', 'main', null, mainDays);
 
   const rows = WATER_OVERVIEW_CARTRIDGES.map(([key, name], index) => {
     const item = status[key] || {};
@@ -104,8 +103,6 @@ function waterOverviewModel(snapshot, options = {}) {
     if (tone === 'due') notice(80, 'Заменить картридж', 'БАРЬЕР · ' + name + ' · ' + text, 'filters', 'due', key, null, item.days);
     else if (tone === 'warning') notice(60, 'Подготовить картридж', 'БАРЬЕР · ' + name + ' · ' + text, 'filters', 'warning', key, null, item.days);
     else if (tone === 'unknown') notice(29, 'Уточнить сроки БАРЬЕР', name + ' · ' + text, 'filters', 'unknown', key);
-    else if (Number.isFinite(item.days) && item.days > 0) notice(10, 'Следующая замена картриджа',
-      'БАРЬЕР · ' + name + ' · ' + text, 'filters', 'ok', key, null, item.days);
     return {key, name, number: index + 1, tone, text, deadline: waterOverviewDate(item.deadline)};
   });
   const barrierTone = ['due', 'warning', 'unknown', 'ok'].find(tone => rows.some(row => row.tone === tone));
@@ -150,9 +147,6 @@ function waterOverviewModel(snapshot, options = {}) {
   if (needsGh) notice(50, 'Проверить жёсткость', 'После «Ёлки» · внести результат', 'quality');
   else if (ambiguousCycle) notice(49, 'Уточнить результат цикла', 'Проба и цикл в один день · порядок не указан', 'quality');
   if (saltStatus.state === 'unknown') notice(35, 'Проверить запас соли', 'Нужна ручная проверка и запись остатка', 'softener', 'unknown');
-  if (saltStatus.state === 'ok' && Number.isFinite(saltStatus.days) && saltStatus.days > 0) notice(10,
-    'Проверить запас соли', 'Следующая ручная проверка через ' + waterOverviewDays(saltStatus.days),
-    'softener', 'ok', null, null, saltStatus.days);
   const softener = {
     tone: softenerTone, label: softenerLabel,
     regenerationDate: regeneration?.date || null, regenerationDetail,
@@ -161,6 +155,8 @@ function waterOverviewModel(snapshot, options = {}) {
       : saltKg === 0 ? 'Оценка исчерпана · проверьте запас'
       : saltStatus.state === 'ok' && waterOverviewDate(salt.last_checked)
         ? 'Проверка ' + waterOverviewDateText(salt.last_checked) : 'Оценка по записанным дозам',
+    nextSaltCheck: saltStatus.state === 'ok' && saltKg !== 0 && Number.isFinite(saltStatus.days) && saltStatus.days > 0
+      ? 'Следующая проверка через ' + waterOverviewDays(saltStatus.days) : '',
     gh: gh ? {date: gh.date, drops: gh.drops, zh: Number.isFinite(gh.zh) ? gh.zh : null} : null,
     ghText: gh ? waterOverviewNumber(gh.drops, 0) + ' кап. · ' + waterOverviewDateText(gh.date) : 'Замеров пока нет',
   };

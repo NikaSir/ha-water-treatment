@@ -31,7 +31,8 @@ function waterOverviewMarkup(version) {
     + '<span class="overview-detail" data-overview="regeneration-detail">По журналу</span>'
     + '<span class="overview-field-label overview-salt-label" data-overview="salt-label">Соль · расчётный остаток</span>'
     + '<strong class="overview-value" data-overview="salt-value">— кг</strong>'
-    + '<span class="overview-detail" data-overview="salt-detail">Нет данных для расчёта</span></span></span>'
+    + '<span class="overview-detail" data-overview="salt-detail">Нет данных для расчёта</span>'
+    + '<span class="overview-detail" data-overview-salt-next-check hidden></span></span></span>'
     + '<span class="overview-gh"><span>GH после «Ёлки»</span><span data-overview="gh-value">Замеров пока нет</span></span></button>'
     + '<button type="button" class="card overview-card" data-overview-card="barrier" data-status="unknown"'
     + ' data-view="filters" data-overview-filter="ferrostop">'
@@ -81,6 +82,11 @@ function paintWaterOverview(panel) {
   text('salt-label', model.softener.saltLabel);
   text('salt-value', waterOverviewNumber(model.softener.saltKg) + ' кг');
   text('salt-detail', model.softener.saltDetail);
+  const nextCheck = root.querySelector('[data-overview-salt-next-check]');
+  if (nextCheck) {
+    panel._setText('[data-overview-salt-next-check]', model.softener.nextSaltCheck, root);
+    nextCheck.hidden = !model.softener.nextSaltCheck;
+  }
   text('gh-value', model.softener.ghText);
   for (const row of model.barrier.rows) {
     status(root.querySelector('[data-overview-cartridge="' + row.key + '"]'), row.tone);
