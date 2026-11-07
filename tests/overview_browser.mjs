@@ -21,10 +21,10 @@ const fixture = overviewFixture();
 const html = `<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{--primary-background-color:#101820;--card-background-color:#1b2733;--ha-card-background:#1b2733;--secondary-background-color:#14202b;--primary-text-color:#f1f5f8;--secondary-text-color:#afc1d1;--divider-color:#334653;--primary-color:#52b2ed;color-scheme:dark}html[data-theme=light]{--primary-background-color:#f4f7fa;--card-background-color:#fff;--ha-card-background:#fff;--secondary-background-color:#f2f5f8;--primary-text-color:#20242a;--secondary-text-color:#5d6878;--divider-color:#dce4ed;--primary-color:#1688f8;color-scheme:light}html,body{margin:0;height:100%;overflow:hidden}nikas-water-treatment-panel{height:100%;display:block}ha-icon{display:inline-block;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px)}</style>
 <script src="/preview/ha-icon.js"></script><script src="/custom_components/water_treatment/frontend/water-treatment-panel.js"></script><body><script>
-window.fixture=${JSON.stringify(fixture)};window.failRead=false;window.requests=[];
+window.fixture=${JSON.stringify(fixture)};window.failRead=false;window.requests=[];window.serviceCalls=[];
 window.panel=document.createElement('nikas-water-treatment-panel');
 window.fixtureHass={locale:{language:'ru'},user:{is_admin:true},connection:{connected:true},states:{},
-callWS:async message=>{window.requests.push(message);if(window.failRead)throw new Error('offline');if(message.action)throw new Error('Unexpected write from read-only overview');return structuredClone(window.fixture)},callService:async()=>{}};
+callWS:async message=>{window.requests.push(message);if(window.failRead)throw new Error('offline');if(message.action)throw new Error('Unexpected write from read-only overview');return structuredClone(window.fixture)},callService:async(...args)=>{window.serviceCalls.push(args)}};
 window.panel.hass=window.fixtureHass;document.body.append(window.panel);
 </script></body></html>`;
 const server = createServer(async (request, response) => {
@@ -143,6 +143,7 @@ try {
   assert.deepEqual(await by('.app-header').boundingBox(),headerBefore);
   assert.deepEqual(await by('.tabbar').boundingBox(),tabsBefore);
   assert.equal(await page.evaluate(()=>requests.some(message=>message.action && message.action!=='get')),false);
+  assert.deepEqual(await page.evaluate(()=>serviceCalls),[], 'Overview navigation and refresh must not issue HA service commands');
   assert.deepEqual(errors,[]);
   console.log('PASS point updates preserve scroll, never issue writes, and emit no page errors');
   console.log('Browser acceptance PASS; screenshots:',output);
