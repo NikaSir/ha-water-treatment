@@ -1,6 +1,34 @@
-<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Водоподготовка — тестовый предпросмотр</title><style>:root{--primary-background-color:#f4f7fa;--card-background-color:#fff;--primary-text-color:#20242a;--secondary-text-color:#6e7782;--divider-color:#dce4ed;--primary-color:#03a9d9}html,body{height:100%;margin:0;overflow:hidden}nikas-water-treatment-panel{display:block;height:100%}</style><script src="../custom_components/water_treatment/frontend/water-treatment-panel.js"></script><body><script>
-const saved={"settings": {"people": 3, "hardness": null, "softening_auto": true, "main": {"profile": "mechanical", "volume": 100, "months": 6, "mode": "both", "date": null, "baseline": null}, "cartridges": {"ferrostop": {"months": 6, "date": null}, "softening": {"months": 6, "date": null}, "postcarbon": {"months": 6, "date": null}}, "salt": {"schema": 2, "model": "Ёлка WSC-0,5-Rx-(SC)", "dose": 1.0, "dose_basis": "assumed", "check_days": 6, "level": "unknown", "last_checked": null, "last_added": null, "last_added_kg": null, "known_kg": null, "estimated_kg": null, "last_ledger_date": null, "last_tank_service": null, "regenerations": 0, "history": []}, "treatment": {"profile": {"resin_l": 8.0, "resin_basis": "assumed", "cycle_m3": 1.2, "cycle_basis": "temporary_setting", "max_days": 6, "mode": "A-01", "time": "03:00", "volume_unit": "HU-01", "backwash_mode": "F-00", "signal": "b-01", "backwash_min": 10, "brine_min": 75, "refill_min": 1, "fast_rinse_min": 6, "daily_service_m3": null}, "resin_since_year": null, "resin_replaced": null, "gh_history": []}}, "revision": 0, "today": "2026-11-06", "meter": 123.456, "salt_status": {"state": "unknown", "days": null, "known_remaining_kg": null, "estimated_remaining_kg": null, "full_cycles": null, "nominal_m3": null, "scenario_days": null}, "treatment_status": {"stage_minutes": 92, "latest_gh": []}, "status": {"main": {"state": "unconfigured", "days": null, "used": null, "remaining": null, "percent": null}, "ferrostop": {"state": "unconfigured", "days": null, "used": null, "remaining": null, "percent": null}, "softening": {"state": "unconfigured", "days": null, "used": null, "remaining": null, "percent": null}, "postcarbon": {"state": "unconfigured", "days": null, "used": null, "remaining": null, "percent": null}}};
-const panel=document.createElement('nikas-water-treatment-panel');
-panel.hass={locale:{language:'ru'},user:{is_admin:true},states:{},callWS:async m=>{if(m.action)throw new Error('Это предпросмотр, запись недоступна');return structuredClone(saved)},callService:async()=>{}};
-document.body.append(panel);
-</script></body></html>
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Водоподготовка — тестовый предпросмотр</title>
+<style>
+  :root{--primary-background-color:#101820;--card-background-color:#1b2733;--ha-card-background:#1b2733;--secondary-background-color:#14202b;--primary-text-color:#f1f5f8;--secondary-text-color:#afc1d1;--divider-color:#334653;--primary-color:#52b2ed;color-scheme:dark}
+  html[data-theme=light]{--primary-background-color:#f4f7fa;--card-background-color:#fff;--ha-card-background:#fff;--secondary-background-color:#f2f5f8;--primary-text-color:#20242a;--secondary-text-color:#5d6878;--divider-color:#dce4ed;--primary-color:#1688f8;color-scheme:light}
+  html,body{height:100%;margin:0;overflow:hidden}nikas-water-treatment-panel{display:block;height:100%}
+  ha-icon{display:inline-block;width:var(--mdc-icon-size,24px);height:var(--mdc-icon-size,24px)}
+</style>
+<script src="/preview/ha-icon.js"></script>
+<script src="/custom_components/water_treatment/frontend/water-treatment-panel.js"></script>
+<body>
+<script type="module">
+  import {overviewFixture, emptyOverviewFixture} from '/tests/overview_fixtures.mjs';
+  const query = new URLSearchParams(location.search);
+  document.documentElement.dataset.theme = query.get('theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const snapshot = query.get('state') === 'unknown' ? emptyOverviewFixture() : overviewFixture();
+  if (query.get('state') === 'due') Object.assign(snapshot.status.softening, {state:'due', days:-3});
+  const panel = document.createElement('nikas-water-treatment-panel');
+  panel.hass = {
+    locale:{language:'ru'}, user:{is_admin:true}, connection:{connected:true}, states:{},
+    callWS:async message => {
+      if (message.action) throw new Error('Это предпросмотр, запись недоступна');
+      return structuredClone(snapshot);
+    },
+    callService:async()=>{},
+  };
+  document.body.append(panel);
+  panel.shadowRoot.querySelector('.overview-heading p').textContent = 'Тестовые данные · запись отключена';
+</script>
+</body>
+</html>

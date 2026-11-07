@@ -16,11 +16,13 @@
     "templates/shell_v2/nikas-specialized-shell.js",
     "custom_components/water_treatment/frontend/src/zoom-controller.js",
     "custom_components/water_treatment/frontend/src/treatment-ui.js",
+    "custom_components/water_treatment/frontend/src/overview-model.js",
+    "custom_components/water_treatment/frontend/src/overview-ui.js",
     "custom_components/water_treatment/frontend/src/water-treatment-panel-core.js",
     "custom_components/water_treatment/frontend/src/styles.css",
     "scripts/build.mjs"
   ],
-  "ui_version": "0.1.0-beta001",
+  "ui_version": "0.2.0-beta001",
   "web_component": "nikas-water-treatment-panel",
   "bundle_contract": {
     "autonomous": true,

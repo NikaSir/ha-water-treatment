@@ -1,10 +1,11 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.1.0-beta001",
-  preferredView: "filters",
+  uiVersion: "0.2.0-beta001",
+  preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
+    ["overview", "mdi:view-dashboard-outline", "Обзор"],
     ["filters", "mdi:filter-outline", "Фильтры"],
     ["softener", "mdi:water-sync", "Ёлка"],
     ["quality", "mdi:flask-outline", "Жёсткость"],
@@ -72,6 +73,8 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     super();
     this.attachShadow({ mode: "open" });
     this._filterData = null;
+    this._filterLoadError = false;
+    this._filterDisconnected = false;
     this._filterBusy = false;
     this._filterLoadPromise = null;
     this._saltDraftRevision = 0;
@@ -97,6 +100,9 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   }
 
   set hass(value) {
+    const disconnected = value?.connection?.connected === false;
+    if (this._filterDisconnected && !disconnected) this._filterData = null;
+    this._filterDisconnected = disconnected;
     this._hass = value;
     this._queuePatch();
   }
@@ -221,7 +227,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         this._filterAction(button);
       } else if (button.dataset.view) {
         this._activateView(button.dataset.view, true);
-
+        if (button.dataset.overviewFilter) this._focusOverviewFilter(button.dataset.overviewFilter);
       }
     });
 
@@ -300,6 +306,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   }
 
   _viewMarkup(view) {
+    if (view === "overview") return waterOverviewMarkup(this._config().uiVersion);
     if (view === "softener") return this._saltMarkup() + waterSoftenerMarkup();
     if (view === "quality") return waterQualityMarkup();
     return this._filtersMarkup();
@@ -349,6 +356,19 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     }
     this._loadFilters();
     this._queuePatch();
+  }
+
+  _focusOverviewFilter(key) {
+    if (!['main', 'ferrostop', 'softening', 'postcarbon'].includes(key)) return;
+    window.requestAnimationFrame(() => {
+      if (this._view !== 'filters' || !this.isConnected) return;
+      const card = this.shadowRoot.querySelector('[data-filter-card="' + key + '"]');
+      const viewport = this.shadowRoot.querySelector('.canvas-viewport');
+      if (!card || !viewport) return;
+      card.setAttribute('tabindex', '-1');
+      card.focus({preventScroll: true});
+      viewport.scrollTop += card.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 12;
+    });
   }
 
   _filtersMarkup() {
@@ -411,11 +431,14 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     const guard = {edits: new Map(this._filterControlEdits), ids: null, preserveDrafts: true};
     try {
       const data = await this._withTimeout(this._hass.callWS({ type: "water_treatment/filters" }), 15000);
+      this._filterLoadError = false;
       this._filterData = data;
       this._paintFilters(true, guard);
       this._setText("[data-filter-message]", "Данные водоподготовки актуальны");
     } catch (error) {
       this._filterData = null;
+      this._filterLoadError = true;
+      paintWaterOverview(this);
       this._setText("[data-filter-message]", "Не удалось получить данные: " + (error.message || String(error)));
       for (const selector of ['[data-salt-message]', '[data-treatment-message]', '[data-gh-message]']) {
         this._setText(selector, "Не удалось получить данные: " + (error.message || String(error)));
@@ -501,6 +524,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   }
 
   _paintFilters(fill, guard) {
+    paintWaterOverview(this);
     const data = this._filterData;
     if (!data || !this._views.has("filters")) return;
     const cfg = data.settings;
@@ -608,6 +632,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         ? this._filterData.revision : editingRevision;
       this._filterData = await this._withTimeout(this._hass.callWS({ type: 'water_treatment/filters', action,
         payload, revision }), 15000);
+      this._filterLoadError = false;
       this._paintFilters(true, fillGuard);
       for (const id of fillGuard.ids) {
         if ((this._filterControlEdits.get(id) || 0) === (fillGuard.edits.get(id) || 0)) this._filterDirtyControls.delete(id);
@@ -651,6 +676,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     const config = this._config();
     this._setText(".header-title strong", config.title);
     this._setText(".header-title small", "UI v" + config.uiVersion);
+    paintWaterOverview(this);
     if (!this._filterData && !this._filterLoadPromise && !this._filterBusy) this._loadFilters();
     window.NikasPanelZoom && window.NikasPanelZoom.attach
       ? window.NikasPanelZoom.attach(this, { min: 0.75, max: 2.0 }).bind() : null;

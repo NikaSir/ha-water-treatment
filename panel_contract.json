@@ -6,9 +6,10 @@
   "entry_route": "/dashboard-water-treatment",
   "safe_return_route": "/home/overview",
   "visible_entry_owner": "integration.sidebar",
-  "ui_version": "0.1.0-beta001",
+  "ui_version": "0.2.0-beta001",
   "read_only": false,
   "tabs": [
+    "overview",
     "filters",
     "softener",
     "quality"

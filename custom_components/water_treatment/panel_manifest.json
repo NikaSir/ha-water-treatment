@@ -5,17 +5,22 @@
   "entry_route": "/dashboard-water-treatment",
   "safe_return_route": "/home/overview",
   "owner": "water_treatment",
-  "preferred_view": "filters",
-  "ui_version": "0.1.0-beta001",
+  "preferred_view": "overview",
+  "ui_version": "0.2.0-beta001",
   "template_version": "2.2",
   "production_entrypoint": "frontend/water-treatment-panel.js",
   "runtime_files": [
-    "frontend/water-treatment-panel.js"
+    "frontend/water-treatment-panel.js",
+    "frontend/assets/main-filter.png",
+    "frontend/assets/elka-cabinet.png",
+    "frontend/assets/barrier-three-stage.png"
   ],
   "build_source_files": [
     "../../templates/shell_v2/nikas-specialized-shell.js",
     "frontend/src/zoom-controller.js",
     "frontend/src/treatment-ui.js",
+    "frontend/src/overview-model.js",
+    "frontend/src/overview-ui.js",
     "frontend/src/water-treatment-panel-core.js",
     "frontend/src/styles.css"
   ],
