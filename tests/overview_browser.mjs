@@ -24,7 +24,7 @@ metadata=next(node.value for node in tree.body if isinstance(node,ast.Assign) an
 tabs=next(value for key,value in zip(metadata.keys,metadata.values) if isinstance(key,ast.Constant) and key.value=='tabs')
 print(json.dumps(ast.literal_eval(tabs)))
 `,resolve(root,'custom_components/water_treatment/panel.py')],{encoding:'utf8'}));
-const output = resolve(root, '.superpowers/sdd/2026-11-07-filter-screen-branding/browser');
+const output = resolve(root, '.superpowers/sdd/2026-11-07-barrier-resource-bars/browser');
 await mkdir(output, {recursive: true});
 const fixture = overviewFixture();
 fixture.settings.salt.check_days = 12;
@@ -90,6 +90,17 @@ const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const by = selector => page.locator('nikas-water-treatment-panel').locator(selector);
 const tick = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+const expectResource = async (key, percent) => {
+  const state = await by('[data-overview-resource="'+key+'"]').evaluate(node => ({
+    known: node.dataset.known, now: node.getAttribute('aria-valuenow'), text: node.getAttribute('aria-valuetext'),
+    width: parseFloat(node.querySelector('[data-overview-progress]').style.width),
+  }));
+  assert.equal(state.known, String(percent !== null), key+' known resource');
+  assert.equal(state.now, percent === null ? null : String(Math.round(percent)), key+' accessible resource');
+  assert.ok(Math.abs(state.width-(percent ?? 0))<0.001, key+' visible resource');
+  assert.match(state.text, percent === null ? /неизвестен/ : /Осталось/, key+' resource description');
+};
+const resourceKeys = ['main','ferrostop','softening','postcarbon'];
 try {
   await page.goto(url);
   await page.waitForFunction(() => window.panel?._filterData);
@@ -103,8 +114,15 @@ try {
   assert.equal(await page.getByRole('button', {name:/Ёлка.*Соль проверена.*4 кг/}).count(), 1);
   assert.equal(await page.getByRole('button', {name:/БАРЬЕР.*Смягчение.*24 дня/}).count(), 1);
   assert.equal(await by('.overview-card img').count(), 3);
+  assert.equal(await by('[data-overview-resource]').count(), 4);
+  for (const [key,percent] of [['main',88],['ferrostop',100*145/182],['softening',100*24/61],['postcarbon',100*145/182]]) {
+    await expectResource(key,percent);
+  }
   await page.waitForFunction(() => [...window.panel.shadowRoot.querySelectorAll('.overview-card img')].every(image => image.complete && image.naturalWidth > 0));
-  await page.evaluate(() => {window.mounted = [...panel.shadowRoot.querySelectorAll('.overview-card,.overview-card img,.app-header,.tabbar')];});
+  await page.evaluate(() => {
+    window.mounted = [...panel.shadowRoot.querySelectorAll('.overview-card,.overview-card img,.app-header,.tabbar')];
+    window.resourceNodes = [...panel.shadowRoot.querySelectorAll('[data-overview-resource],[data-overview-progress]')];
+  });
   console.log('PASS overview opens first with live snapshot and three local illustrations');
 
   // Canonical NikaS viewport matrix plus the two narrower phone widths.
@@ -135,9 +153,39 @@ try {
         `full accessible names and canonical overflow ${width}/${theme}`);
       if(width<=430 && theme==='dark')console.log(`${width}px canonical tab label measurements:`,JSON.stringify(layout.tabLabels));
       await page.screenshot({path:resolve(output,`overview-${width}-${theme}.png`)});
+      if(width===430 && theme==='dark') {
+        await by('[data-overview-card="barrier"]').screenshot({path:resolve(output,'barrier-430-dark.png')});
+      }
     }
   }
   console.log('PASS seven phone/tablet/desktop sizes, dark/light, without horizontal overflow or small text');
+
+  await page.evaluate(async()=>{
+    window.originalSoftening=structuredClone(fixture.status.softening);
+    Object.assign(fixture.status.softening,{state:'warning',days:14});
+    await panel._loadFilters();
+  });
+  await expectResource('softening',100*14/61);
+  await expectResource('main',88);
+  await expectResource('ferrostop',100*145/182);
+  await expectResource('postcarbon',100*145/182);
+  const stageColors=await by('[data-overview-card="barrier"]').evaluate(card=>
+    [...card.querySelectorAll('[data-overview-cartridge]')].map(row=>({
+      state:row.dataset.status,color:getComputedStyle(row.querySelector('[data-overview-progress]')).backgroundColor,
+    })));
+  assert.deepEqual(stageColors.map(row=>row.state),['ok','warning','ok']);
+  assert.equal(stageColors[0].color,stageColors[2].color);
+  assert.notEqual(stageColors[0].color,stageColors[1].color,'Only the warning stage changes its bar color');
+  await page.evaluate(async()=>{Object.assign(fixture.status.softening,{state:'due',days:0});await panel._loadFilters();});
+  await expectResource('softening',0);
+  assert.equal(await by('[data-overview-cartridge="softening"]').getAttribute('data-status'),'due');
+  await page.evaluate(async()=>{Object.assign(fixture.status.softening,{state:'unconfigured',days:null,deadline:null});await panel._loadFilters();});
+  await expectResource('softening',null);
+  assert.equal(await by('[data-overview-cartridge="softening"]').getAttribute('data-status'),'unknown');
+  await page.evaluate(async()=>{fixture.status.softening=window.originalSoftening;await panel._loadFilters();});
+  await expectResource('softening',100*24/61);
+  assert.equal(await page.evaluate(()=>resourceNodes.every((node,index)=>node===[...panel.shadowRoot.querySelectorAll('[data-overview-resource],[data-overview-progress]')][index])),true);
+  console.log('PASS four independent resource bars, per-stage colors, known zero and unknown data without remounting');
 
   await by('[data-overview-card="main"]').click();
   assert.equal(await page.evaluate(()=>panel._view),'filters');
@@ -166,20 +214,29 @@ try {
   assert.equal(await by('[data-overview="salt-value"]').innerText(),'— кг');
   assert.equal(await by('[data-overview-salt-next-check]').isVisible(),false);
   assert.equal(await by('[data-overview-card="main"]').getAttribute('data-status'),'unknown');
+  for(const key of resourceKeys)await expectResource(key,null);
   assert.match(await by('[data-overview="notice-title"]').innerText(),/Обновить/);
   await page.evaluate(async()=>{window.failRead=false;await panel._loadFilters();});
   assert.match(await by('[data-overview="main-used"]').innerText(),/13/);
   assert.equal(await by('[data-overview-salt-next-check]').innerText(),'Следующая проверка через 12 дней');
+  for (const [key,percent] of [['main',87],['ferrostop',100*145/182],['softening',0],['postcarbon',100*145/182]]) {
+    await expectResource(key,percent);
+  }
   assert.equal(await page.evaluate(()=>mounted.every((node,index)=>node===[...panel.shadowRoot.querySelectorAll('.overview-card,.overview-card img,.app-header,.tabbar')][index])),true);
+  assert.equal(await page.evaluate(()=>resourceNodes.every((node,index)=>node===[...panel.shadowRoot.querySelectorAll('[data-overview-resource],[data-overview-progress]')][index])),true);
   console.log('PASS failure clears stale values and recovery preserves card/image/shell nodes');
 
   await page.evaluate(()=>{fixtureHass.connection.connected=false;panel.hass=fixtureHass;});
   await tick();
   assert.equal(await by('[data-overview="main-used"]').innerText(),'— м³');
   assert.equal(await by('[data-overview-salt-next-check]').isVisible(),false);
+  for(const key of resourceKeys)await expectResource(key,null);
   await page.evaluate(async()=>{fixtureHass.connection.connected=true;panel.hass=fixtureHass;await panel._loadFilters();});
   await tick();
   assert.match(await by('[data-overview="main-used"]').innerText(),/13/);
+  for (const [key,percent] of [['main',87],['ferrostop',100*145/182],['softening',0],['postcarbon',100*145/182]]) {
+    await expectResource(key,percent);
+  }
   console.log('PASS disconnect/reconnect does not leave a healthy stale overview');
 
   await page.setViewportSize({width:320,height:600});
