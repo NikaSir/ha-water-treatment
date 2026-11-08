@@ -1,16 +1,47 @@
 # Publication state
 
-Published baseline, checked on 2026-11-08: [0.2.0-beta005](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta005), published at 07:50:39 UTC. Its tag targets merged `main` commit `8dfc9f82113bf48611efb4be4caff81395ee3d32`.
+Published baseline, checked on 2026-11-08: [0.2.0-beta006](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta006), published at 09:08:33 UTC. Its tag targets merged `main` commit `c75c5236c809cd1ac1de393cd56af3b30f417cf2` ([PR #7](https://github.com/NikaSir/ha-water-treatment/pull/7)).
 
-Prepared version: `0.2.0-beta006`, declared in `custom_components/water_treatment/manifest.json`. This branch prepares the changes for review; no release/tag or live HA installation is performed here.
+Prepared version: `0.2.0-beta007`, declared in `custom_components/water_treatment/manifest.json`. This branch prepares the changes for review; no release/tag or live HA installation is performed here.
 
-Beta006 separates GH samples and equipment/filter metrics into readable labelled blocks. It explains the saved BARRIER softening interval using a read-only backend calculation basis. The existing manufacturer table remains unchanged: for three people both 0.7132 and 1.4264 °Ж map to two months. Automatic mode no longer requests a manual interval; dates, journals and other cartridge intervals are preserved.
+Beta007 adds an independent regeneration date beside the completed-cycle form.
+Retrospective cycles after the last recorded tank service rebuild the salt stock
+in date order using saved event consumption. Existing dates and event history
+remain intact, including the latest-cycle display when an older event is added.
+
+Published beta006 separates GH samples and equipment/filter metrics into readable
+labelled blocks and explains the saved BARRIER softening interval. The existing
+manufacturer table is unchanged.
 
 Published beta004 added individual BARRIER resource bars; beta005 added durable journal retry IDs, readable errors and explicit archived cleanup of earlier exact salt-record duplicates.
 
 Merging the version change into `main` triggers `.github/workflows/publish.yml`, which validates and publishes a matching release automatically. Merge/publication therefore requires the user's release instruction. HACS validation and actual installation are separate evidence; this branch alone is not an update delivered to a device.
 
 ## Verification record
+
+### Beta007 — 2026-11-08
+
+`npm run check` passes: 76 Python tests, 43 form tests, 31 overview-model tests,
+the tab/identity contract, deterministic bundle and NikaS standard check.
+Regression tests were observed failing before implementation, then passing.
+Coverage includes independent service/cycle dates, cleared and newer drafts,
+date constraints, retrospective stock replay, zero-clamped estimates followed
+by top-ups, saved/unknown historical doses, measured underflow, stable same-day
+ordering, unchanged metadata/history, persistence and idempotent retry.
+The overview continues to use the newest event date and result when an older
+cycle is appended.
+
+All three production-bundle Chromium suites pass. The existing overview and
+detail matrices remain green; the new date suite verifies HA-date defaults,
+native required/min/max validation, independent dates, polling/navigation,
+local acknowledgement and edits during a pending save. Its 320/390px light/dark
+screenshots were inspected. The date is the first field below the completed-cycle
+heading and fits within the existing scrolling area. Only synthetic API records
+are written in browser tests; no live HA journal or valve settings are changed.
+These results do not establish installation or physical-device acceptance.
+
+Independent frontend and backend reviews found no blocking issues. The reviewer
+also ran all 21 salt-model and 19 persistence-adapter tests successfully.
 
 ### Beta006 — 2026-11-08
 

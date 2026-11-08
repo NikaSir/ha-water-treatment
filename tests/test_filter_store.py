@@ -205,6 +205,87 @@ class FilterStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(item[1]=='unauthorized' for item in errors))
         self.assertEqual(self.manager.revision,0)
 
+class RetrospectiveStoreTests(unittest.IsolatedAsyncioTestCase):
+    setUp = FilterStoreTests.setUp
+
+    async def record(self, action, payload, operation_id=None):
+        try:
+            return await self.manager.mutate(action, payload, self.manager.revision, operation_id=operation_id)
+        except ValueError as err:
+            self.fail(f'{action} rejected a valid event: {err}')
+
+    async def test_backdated_cycle_survives_snapshot_reload_and_retry_without_double_consumption(self):
+        await self.manager.load()
+        await self.record('salt_service', {'date': '2026-10-01', 'remaining_kg': 0, 'added_kg': 1})
+        await self.record('salt_settings', {'dose': 2})
+        await self.record('salt_regeneration', {'date': '2026-10-03', 'completed': True})
+        await self.record('salt_topup', {'date': '2026-10-08', 'kg': 5})
+        await self.record('salt_settings', {'dose': 1})
+        before = deepcopy(self.manager.data)
+        payload = {'date': '2026-10-02', 'completed': True, 'result': 'unverified'}
+
+        snapshot = await self.record('salt_regeneration', payload, operation_id='missed-cycle')
+
+        self.assertEqual(snapshot['salt_status']['estimated_remaining_kg'], 5)
+        self.assertEqual(snapshot['salt_status']['full_cycles'], 5)
+        self.assertIsNone(snapshot['salt_status']['known_remaining_kg'])
+        self.assertEqual(snapshot['settings']['salt']['regenerations'], 2)
+        self.assertEqual(snapshot['revision'], 6)
+        reloaded = self.adapter.FilterStore(self.hass)
+        await reloaded.load()
+        await reloaded.mutate('salt_regeneration', payload, 5, operation_id='missed-cycle')
+        self.assertEqual(reloaded.data, snapshot['settings'])
+        self.assertEqual(reloaded.revision, 6)
+        self.assertEqual(reloaded.data['salt']['last_ledger_date'], '2026-10-08')
+        self.assertEqual(reloaded.data['salt']['last_tank_service'], '2026-10-01')
+        self.assertEqual(reloaded.data['salt']['last_added'], '2026-10-08')
+        self.assertEqual(reloaded.data['salt']['history'][:-1], before['salt']['history'])
+        self.assertEqual(reloaded.data['main'], before['main'])
+        self.assertEqual(reloaded.data['cartridges'], before['cartridges'])
+
+    async def test_replay_underflow_leaves_persisted_state_and_operation_id_untouched(self):
+        await self.manager.load()
+        await self.record('salt_service', {'date': '2026-10-01', 'remaining_kg': 0, 'added_kg': 2})
+        await self.record('salt_topup', {'date': '2026-10-08', 'kg': 5})
+        before = deepcopy(self.manager.data)
+        saved = deepcopy(self.store.saved)
+        payload = {'date': '2026-10-02', 'completed': True, 'salt_kg': 3}
+
+        with self.assertRaisesRegex(ValueError, 'Расход больше'):
+            await self.manager.mutate('salt_regeneration', payload, 2, operation_id='corrected-cycle')
+
+        self.assertEqual(self.manager.data, before)
+        self.assertEqual(self.manager.revision, 2)
+        self.assertEqual(self.store.saved, saved)
+        payload['salt_kg'] = 1
+        await self.record('salt_regeneration', payload, operation_id='corrected-cycle')
+        self.assertEqual(self.manager.data['salt']['known_kg'], 6)
+        self.assertEqual(self.manager.data['salt']['regenerations'], 1)
+        self.assertEqual(self.manager.revision, 3)
+
+    async def test_failed_backdated_save_can_retry_the_same_operation_once(self):
+        await self.manager.load()
+        await self.record('salt_service', {'date': '2026-10-01', 'remaining_kg': 0, 'added_kg': 5})
+        await self.record('salt_topup', {'date': '2026-10-08', 'kg': 5})
+        before = deepcopy(self.manager.data)
+        saved = deepcopy(self.store.saved)
+        payload = {'date': '2026-10-02', 'completed': True}
+        self.store.fail = True
+
+        with self.assertRaises(OSError):
+            await self.record('salt_regeneration', payload, operation_id='retry-missed-cycle')
+
+        self.assertEqual(self.manager.data, before)
+        self.assertEqual(self.manager.revision, 2)
+        self.assertEqual(self.store.saved, saved)
+        self.store.fail = False
+        await self.record('salt_regeneration', payload, operation_id='retry-missed-cycle')
+        self.assertEqual(self.manager.data['salt']['estimated_kg'], 9)
+        self.assertEqual(self.manager.data['salt']['regenerations'], 1)
+        self.assertEqual(len(self.manager.data['salt']['history']), 3)
+        self.assertEqual(self.manager.revision, 3)
+
+
 class RetryTests(unittest.IsolatedAsyncioTestCase):
     setUp = FilterStoreTests.setUp
     async def test_retry_after_reload_does_not_append_again(self):

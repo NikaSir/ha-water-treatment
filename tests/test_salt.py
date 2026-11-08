@@ -1,5 +1,6 @@
 import runpy
 import unittest
+from copy import deepcopy
 from datetime import date
 from pathlib import Path
 
@@ -79,6 +80,193 @@ class SaltTests(unittest.TestCase):
         for action,payload in [('service',{'remaining_kg':None,'added_kg':5}),('service',{'remaining_kg':-1,'added_kg':5}),('regeneration',{'completed':False}),('regeneration',{'completed':True,'result':'invented'}),('remove',{'kg':float('nan')}),('topup',{'kg':True}),('service',{'remaining_kg':0,'added_kg':5,'date':'2027-01-01'})]:
             with self.assertRaises(ValueError):
                 self.m['salt_action'](cfg,action,payload,date(2026,10,27))
+
+class RetrospectiveSaltTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.m = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'custom_components/water_treatment/salt_model.py'))
+
+    def record(self, cfg, action, stamp, **payload):
+        try:
+            return self.m['salt_action'](cfg, action, {'date': stamp, **payload}, date(2026, 11, 8))
+        except ValueError as err:
+            self.fail(f'{action} on {stamp} rejected a valid event: {err}')
+
+    def opening(self, kg):
+        return self.record(self.m['salt_defaults'](), 'service', '2026-10-27', remaining_kg=0, added_kg=kg)
+
+    def test_backdated_measured_cycle_preserves_metadata_and_append_only_history(self):
+        cfg = self.record(self.m['salt_defaults'](), 'service', '2026-10-24', remaining_kg=0, added_kg=25)
+        cfg = self.record(cfg, 'regeneration', '2026-10-25', completed=True)
+        cfg = self.record(cfg, 'service', '2026-10-27', remaining_kg=0, added_kg=5)
+        cfg = self.record(cfg, 'regeneration', '2026-11-01', completed=True, salt_kg=1)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=5)
+        cfg = self.record(cfg, 'check', '2026-11-04', level='low')
+        before = deepcopy(cfg)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-30', completed=True, salt_kg=0.75,
+                              result='confirmed', water_m3=0.39, refill_l=3)
+
+        self.assertEqual(updated['known_kg'], 8.25)
+        self.assertEqual(updated['estimated_kg'], 8.25)
+        self.assertEqual(updated['regenerations'], 3)  # Includes the cycle before the stock reset.
+        self.assertEqual(updated['history'][:-1], before['history'])
+        self.assertEqual(updated['history'][-1]['date'], '2026-10-30')
+        self.assertEqual(updated['history'][-1]['water_m3'], 0.39)
+        self.assertEqual(updated['history'][-1]['refill_l'], 3)
+        for key in ('last_ledger_date', 'last_tank_service', 'last_added', 'last_added_kg',
+                    'last_checked', 'level', 'dose', 'dose_basis', 'check_days'):
+            self.assertEqual(updated[key], before[key], key)
+        self.assertEqual(cfg, before)
+
+    def test_zero_clamped_estimate_does_not_subtract_missed_cycle_from_later_topup(self):
+        cfg = self.opening(1)
+        cfg = self.record(cfg, 'settings', '2026-10-27', dose=2)
+        cfg = self.record(cfg, 'regeneration', '2026-10-31', completed=True)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=5)
+        cfg = self.record(cfg, 'settings', '2026-11-04', dose=1)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-29', completed=True)
+
+        self.assertEqual(updated['estimated_kg'], 5)
+        self.assertIsNone(updated['known_kg'])
+        self.assertEqual(updated['last_ledger_date'], '2026-11-03')
+
+    def test_replay_uses_saved_estimates_across_settings_changes_and_multiple_insertions(self):
+        cfg = self.opening(10)
+        cfg = self.record(cfg, 'settings', '2026-10-27', dose=1.5)
+        cfg = self.record(cfg, 'regeneration', '2026-10-31', completed=True)
+        cfg = self.record(cfg, 'settings', '2026-11-01', dose=2.25)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-29', completed=True)
+        self.assertEqual(updated['estimated_kg'], 6.25)
+        self.assertEqual(updated['history'][1]['estimated_salt_kg'], 1.5)
+        self.assertEqual(updated['history'][-1]['estimated_salt_kg'], 2.25)
+
+        updated = self.record(updated, 'settings', '2026-11-02', dose=5)
+        updated = self.record(updated, 'regeneration', '2026-10-28', completed=True)
+        self.assertEqual(updated['estimated_kg'], 1.25)
+        self.assertEqual(updated['regenerations'], 3)
+        self.assertEqual(updated['last_ledger_date'], '2026-10-31')
+
+    def test_unknown_historical_dose_stays_unknown_after_replay_and_topup(self):
+        cfg = self.opening(5)
+        cfg = self.record(cfg, 'settings', '2026-10-27', dose=1.5, dose_basis='legacy_unverified')
+        cfg = self.record(cfg, 'regeneration', '2026-10-31', completed=True)
+        cfg = self.record(cfg, 'settings', '2026-11-01', dose=2, dose_basis='assumed')
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=2)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-29', completed=True, salt_kg=1)
+
+        self.assertIsNone(updated['known_kg'])
+        self.assertIsNone(updated['estimated_kg'])
+        self.assertIsNone(updated['history'][1]['estimated_salt_kg'])
+
+    def test_intervening_removal_and_zero_measured_consumption_replay_as_measured(self):
+        cfg = self.opening(5)
+        cfg = self.record(cfg, 'regeneration', '2026-10-31', completed=True, salt_kg=0)
+        cfg = self.record(cfg, 'remove', '2026-11-01', kg=1.25)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=2)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-29', completed=True, salt_kg=0.75)
+
+        self.assertEqual(updated['known_kg'], 5)
+        self.assertEqual(updated['estimated_kg'], 5)
+        self.assertEqual(updated['history'][1]['salt_kg'], 0)
+
+    def test_measured_cycle_cannot_spend_a_future_topup(self):
+        cfg = self.opening(2)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=5)
+        before = deepcopy(cfg)
+
+        with self.assertRaisesRegex(ValueError, 'Расход больше'):
+            self.m['salt_action'](cfg, 'regeneration',
+                {'date': '2026-10-29', 'completed': True, 'salt_kg': 3}, date(2026, 11, 8))
+
+        self.assertEqual(cfg, before)
+
+    def test_replay_rejects_underflow_in_a_later_measured_event_atomically(self):
+        for action, payload in (('remove', {'kg': 4}),
+                                ('regeneration', {'completed': True, 'salt_kg': 4})):
+            with self.subTest(action=action):
+                cfg = self.opening(5)
+                cfg = self.record(cfg, action, '2026-10-31', **payload)
+                cfg = self.record(cfg, 'topup', '2026-11-03', kg=5)
+                before = deepcopy(cfg)
+
+                with self.assertRaisesRegex(ValueError, 'Расход больше'):
+                    self.m['salt_action'](cfg, 'regeneration',
+                        {'date': '2026-10-29', 'completed': True, 'salt_kg': 2}, date(2026, 11, 8))
+
+                self.assertEqual(cfg, before)
+
+    def test_same_day_cycle_follows_service_and_existing_same_day_events(self):
+        cfg = self.opening(1)
+        cfg = self.record(cfg, 'settings', '2026-10-27', dose=2)
+        cfg = self.record(cfg, 'regeneration', '2026-10-27', completed=True)
+        cfg = self.record(cfg, 'topup', '2026-10-27', kg=5)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=1)
+        cfg = self.record(cfg, 'settings', '2026-11-04', dose=1)
+
+        updated = self.record(cfg, 'regeneration', '2026-10-27', completed=True)
+
+        self.assertEqual(updated['estimated_kg'], 5)
+        self.assertEqual(updated['last_tank_service'], '2026-10-27')
+        self.assertEqual(updated['last_ledger_date'], '2026-11-03')
+
+    def test_cycle_before_latest_service_is_rejected_without_changing_history(self):
+        cfg = self.opening(5)
+        cfg = self.record(cfg, 'regeneration', '2026-10-29', completed=True)
+        cfg = self.record(cfg, 'service', '2026-11-01', remaining_kg=0, added_kg=3)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=2)
+        before = deepcopy(cfg)
+
+        with self.assertRaises(ValueError):
+            self.m['salt_action'](cfg, 'regeneration',
+                {'date': '2026-10-30', 'completed': True}, date(2026, 11, 8))
+
+        self.assertEqual(cfg, before)
+
+    def test_no_service_rejects_retrospective_cycle_but_keeps_new_unknown_stock_cycles(self):
+        cfg = self.record(self.m['salt_defaults'](), 'topup', '2026-11-03', kg=5)
+        before = deepcopy(cfg)
+        with self.assertRaises(ValueError):
+            self.m['salt_action'](cfg, 'regeneration',
+                {'date': '2026-10-30', 'completed': True}, date(2026, 11, 8))
+        self.assertEqual(cfg, before)
+
+        updated = self.record(cfg, 'regeneration', '2026-11-04', completed=True)
+        self.assertIsNone(updated['known_kg'])
+        self.assertIsNone(updated['estimated_kg'])
+        self.assertEqual(updated['regenerations'], 1)
+        self.assertEqual(updated['last_ledger_date'], '2026-11-04')
+
+    def test_other_stock_actions_remain_chronological(self):
+        cfg = self.opening(5)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=2)
+        before = deepcopy(cfg)
+        for action, payload in (('topup', {'kg': 1}), ('remove', {'kg': 1}),
+                                ('service', {'remaining_kg': 0, 'added_kg': 3})):
+            with self.subTest(action=action), self.assertRaises(ValueError):
+                self.m['salt_action'](cfg, action, {'date': '2026-10-30', **payload}, date(2026, 11, 8))
+        self.assertEqual(cfg, before)
+
+    def test_cleanup_preserves_retrospective_cycle_and_replayed_balance(self):
+        cfg = self.opening(5)
+        cfg = self.record(cfg, 'topup', '2026-11-03', kg=2)
+        for _ in range(2):
+            cfg = self.record(cfg, 'check', '2026-11-04', level='enough')
+        cfg = self.record(cfg, 'regeneration', '2026-10-30', completed=True)
+        original = deepcopy(cfg)
+
+        cleaned = self.record(cfg, 'cleanup', '2026-11-08')
+
+        self.assertEqual(len(cleaned['history']), len(original['history']) - 1)
+        self.assertEqual(cleaned['history'][-1], original['history'][-1])
+        self.assertEqual(cleaned['history_archive'][-1]['history'], original['history'])
+        self.assertEqual(cleaned['estimated_kg'], 6)
+        self.assertEqual(cleaned['regenerations'], 1)
+
 
 class CleanupTests(unittest.TestCase):
     @classmethod
