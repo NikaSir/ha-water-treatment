@@ -283,7 +283,7 @@ function treatmentFixture() {
   const p=saltFixture();const root=p._views.get('filters');
   for(const [id,value] of Object.entries({
     'salt-event-date':'2026-10-27','salt-remaining':'0','salt-added':'5','salt-removed':'','salt-refill-l':'3',
-    'salt-remove-kg':'1','cycle-salt':'','cycle-water':'0.39','cycle-refill':'3','cycle-result':'unverified',
+    'salt-remove-kg':'1','cycle-date':'2026-10-25','cycle-salt':'','cycle-water':'0.39','cycle-refill':'3','cycle-result':'unverified',
     'gh-date':'2026-10-27','gh-point':'softener','gh-drops':'14',
     'treatment-resin':'8','treatment-resin-basis':'assumed','treatment-cycle':'1.2','treatment-cycle-basis':'temporary_setting',
     'treatment-max-days':'6','treatment-backwash':'10','treatment-brine':'75','treatment-refill':'1','treatment-rinse':'6',
@@ -292,7 +292,7 @@ function treatmentFixture() {
     const node=new NodeMock();node.value=value;node.reportValidity=()=>true;root.nodes.set('#'+id,node);p.shadowRoot.nodes.set('#'+id,node);
   }
   for(const id of ['gh-apply','cycle-completed']) {const node=new NodeMock();node.checked=true;root.nodes.set('#'+id,node);}
-  for(const selector of ['[data-treatment-message]','[data-gh-message]',
+  for(const selector of ['[data-treatment-message]','[data-gh-message]','[data-cycle-message]',
     '[data-detail-value="stock-known"]','[data-detail-value="stock-estimated"]','[data-detail-note="stock-estimated"]',
     '[data-detail-value="profile-stages"]','[data-detail-value="profile-resin"]','[data-detail-note="profile-resin"]',
     '[data-gh-point="0"]','[data-gh-drops="0"]','[data-gh-zh="0"]']) p.shadowRoot.nodes.set(selector,new NodeMock());
@@ -329,9 +329,44 @@ test('regeneration requires completed confirmation and preserves separate measur
   assert.equal(sent.payload.completed,true);assert.equal(sent.payload.salt_kg,null);
   assert.equal(sent.payload.water_m3,0.39);assert.equal(sent.payload.refill_l,3);
   assert.equal(sent.payload.result,'unverified');
+  assert.equal(sent.payload.date,'2026-10-25','Uses the cycle date, independent of the service date');
+  assert.equal(p.shadowRoot.querySelector('#salt-event-date').value,'2026-10-27');
+  assert.equal(p.shadowRoot.querySelector('#cycle-date').value,'2026-10-25','Retains the chosen date after saving');
+  assert.match(p.shadowRoot.querySelector('[data-cycle-message]').textContent,/25\.10\.2026/);
   p._views.get('filters').querySelector('#cycle-completed').checked=false;sent=null;
   await p._filterAction({dataset:{filterAction:'salt_regeneration'},disabled:false});
   assert.equal(sent,null);
+});
+
+test('an absent or invalid regeneration date prevents a write and reports beside the cycle form',async()=>{
+  const p=treatmentFixture();let calls=0;
+  p._hass.callWS=async()=>{calls++;return saltSnapshot(4);};
+  const input=p.shadowRoot.querySelector('#cycle-date');
+  input.value='';
+  await p._filterAction({dataset:{filterAction:'salt_regeneration'},disabled:false});
+  assert.equal(calls,0,'An empty date must not silently become today');
+  assert.match(p.shadowRoot.querySelector('[data-cycle-message]').textContent,/дату регенерации/);
+  input.value='2026-10-28';input.reportValidity=()=>false;
+  await p._filterAction({dataset:{filterAction:'salt_regeneration'},disabled:false});
+  assert.equal(calls,0,'Native date constraints must be checked before submitting');
+  assert.match(p.shadowRoot.querySelector('[data-cycle-message]').textContent,/дату регенерации/);
+});
+
+test('regeneration date starts at HA today and a deliberately cleared draft survives polling',async()=>{
+  const p=treatmentFixture();p._bindShellEvents();
+  const data=fullTreatmentSnapshot(3);data.settings.salt.last_tank_service='2026-10-20';
+  p._hass.callWS=async()=>data;
+  const input=p.shadowRoot.querySelector('#cycle-date');input.value='';
+  await p._loadFilters();
+  assert.equal(input.value,data.today);
+  assert.equal(input.max,data.today);
+  assert.equal(input.min,'2026-10-20');
+  edit(p,'cycle-date','');
+  await p._loadFilters();
+  assert.equal(input.value,'','Polling must not turn an unfinished date into today');
+  edit(p,'cycle-date','2026-10-23');
+  await p._loadFilters();
+  assert.equal(input.value,'2026-10-23');
 });
 
 test('profile saves editable assumptions rather than deriving salt consumption from minutes',async()=>{
@@ -422,8 +457,11 @@ test('a new measured event draft typed during a write survives event reset',asyn
   const p=treatmentFixture();p._bindShellEvents();const write=deferred();p._hass.callWS=()=>write.promise;
   const saving=p._filterAction({dataset:{filterAction:'salt_regeneration'},disabled:false});
   edit(p,'cycle-water','0.5');
+  edit(p,'cycle-date','2026-10-26');
   write.resolve(saltSnapshot(4));await saving;
   assert.equal(p._views.get('filters').querySelector('#cycle-water').value,'0.5');
+  assert.equal(p._views.get('filters').querySelector('#cycle-date').value,'2026-10-26');
+  assert.match(p.shadowRoot.querySelector('[data-cycle-message]').textContent,/25\.10\.2026/,'Acknowledges the saved date, not the newer draft');
 });
 
 test('invalid unfinished GH input does not prevent saving independent cartridge settings',async()=>{

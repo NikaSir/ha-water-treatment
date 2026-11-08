@@ -57,13 +57,50 @@ def _subtract(cfg, mass, measured):
         cfg['estimated_kg'] = None if mass is None else round(max(0, cfg['estimated_kg'] - mass), 6)
 
 
+def _replay_stock(cfg, event):
+    """Insert a past cycle into the calculation, preserving the audit history."""
+    history = cfg['history']
+    reset = max((i for i, item in enumerate(history) if item.get('action') == 'service'), default=-1)
+    if reset < 0:
+        raise ValueError('Для прошлой регенерации нужна запись обслуживания с исходным запасом соли')
+    opening = history[reset]
+    if event['date'] < opening['date']:
+        raise ValueError('Дата регенерации раньше последнего обслуживания бака')
+    stock = round(number(opening.get('remaining_kg'), 100, allow_zero=True)
+                  + number(opening.get('added_kg'), 100, allow_zero=True), 6)
+    balance = {'known_kg': number(stock, 100, allow_zero=True), 'estimated_kg': stock}
+    movements = [item for item in history[reset + 1:]
+                 if item.get('action') in ('topup', 'remove', 'regeneration')]
+    movements.append(event)
+    # Same-day movements keep their recorded order; the new cycle follows them.
+    for _, item in sorted(enumerate(movements), key=lambda pair: (pair[1]['date'], pair[0])):
+        action = item['action']
+        if action == 'topup':
+            kg = number(item.get('kg'), 100)
+            for key in ('known_kg', 'estimated_kg'):
+                if balance[key] is not None:
+                    balance[key] = round(balance[key] + kg, 6)
+        elif action == 'remove':
+            _subtract(balance, number(item.get('kg'), 100), measured=True)
+        else:
+            measured = item.get('salt_kg') is not None
+            mass = item.get('salt_kg') if measured else item.get('estimated_salt_kg')
+            if mass is not None:
+                mass = number(mass, 20, allow_zero=True)
+            _subtract(balance, mass, measured)
+    return balance
+
+
 def salt_action(current, action, payload, today):
     cfg = migrate_salt(current)
     stamp = event_date(payload, today)
     event = {'action': action, 'date': stamp}
-    if action in ('topup', 'service', 'remove', 'regeneration'):
+    retrospective = action == 'regeneration' and bool(cfg['last_ledger_date'] and stamp < cfg['last_ledger_date'])
+    if action in ('topup', 'service', 'remove'):
         if cfg['last_ledger_date'] and stamp < cfg['last_ledger_date']:
             raise ValueError('Событие раньше последней записи запаса; уточните текущий остаток')
+    if action == 'regeneration' and cfg['last_tank_service'] and stamp < cfg['last_tank_service']:
+        raise ValueError('Дата регенерации раньше последнего обслуживания бака')
     if action == 'cleanup':
         # Only remove exact checks and top-ups superseded by an explicit stock reset.
         # Equal top-ups after that reset may be real and must remain untouched.
@@ -134,13 +171,16 @@ def salt_action(current, action, payload, today):
         measured = actual is not None
         mass = number(actual, 20, allow_zero=True) if measured else (
             cfg['dose'] if cfg['dose_basis'] != 'legacy_unverified' else None)
-        _subtract(cfg, mass, measured)
-        cfg['regenerations'] += 1
         event.update(result=result, salt_kg=mass if measured else None,
                      estimated_salt_kg=None if measured else mass)
         for key, maximum in (('water_m3', 10), ('refill_l', 100)):
             if payload.get(key) is not None:
                 event[key] = number(payload[key], maximum, allow_zero=True)
+        if retrospective:
+            cfg.update(_replay_stock(cfg, event))
+        else:
+            _subtract(cfg, mass, measured)
+        cfg['regenerations'] += 1
     elif action == 'check':
         level = payload.get('level')
         if level not in ('enough', 'low', 'empty'):
@@ -150,7 +190,7 @@ def salt_action(current, action, payload, today):
     else:
         raise ValueError('Неизвестное действие')
     if action in ('topup', 'service', 'remove', 'regeneration'):
-        cfg['last_ledger_date'] = stamp
+        cfg['last_ledger_date'] = max(stamp, cfg['last_ledger_date'] or stamp)
     cfg['history'].append(event)
     return cfg
 

@@ -110,7 +110,7 @@ function waterSaltLedgerMarkup() {
     + '<p data-salt-coverage-note>Для оценки нужен известный начальный запас.</p></details></section>'
     + '<details><summary>Остаток, очистка бака и регенерации</summary>'
     + '<p>События вводятся вручную. Сброс объёма на дисплее не подтверждает успешную регенерацию.</p>'
-    + '<div class="filter-form">' + waterInput('salt-event-date', 'Дата события', 'date') + '</div>'
+    + '<div class="filter-form">' + waterInput('salt-event-date', 'Дата обслуживания или удаления соли', 'date') + '</div>'
     + '<h3>Бак обслужен</h3><p>Новый запас = оставлено после очистки + добавлено. Прежний запас не прибавляется.</p>'
     + '<div class="filter-form">'
     + waterInput('salt-remaining', 'Оставлено после очистки, кг', 'number', 'min="0" max="100" step="0.1"')
@@ -122,6 +122,8 @@ function waterSaltLedgerMarkup() {
     + waterInput('salt-remove-kg', 'Удалено, кг', 'number', 'min="0.1" max="100" step="0.1"') + '</div>'
     + '<button type="button" data-filter-action="salt_remove">Записать удаление соли</button>'
     + '<h3>Полный цикл завершён</h3><div class="filter-form">'
+    + waterInput('cycle-date', 'Дата регенерации', 'date', 'required aria-describedby="cycle-date-hint"')
+    + '<p id="cycle-date-hint">Можно записать прошедший цикл — не раньше последнего записанного обслуживания бака.</p>'
     + waterInput('cycle-salt', 'Соль за этот цикл, кг — если измерено', 'number', 'min="0" max="20" step="0.1"')
     + waterInput('cycle-water', 'Вода на регенерацию, м³ — если измерено', 'number', 'min="0" max="10" step="0.001"')
     + waterInput('cycle-refill', 'Вода наполнения, л — если измерено', 'number', 'min="0" max="100" step="0.1"')
@@ -129,6 +131,7 @@ function waterSaltLedgerMarkup() {
     + '<option value="confirmed">Подтверждён проверкой</option><option value="failed">Смягчение не восстановилось</option></select></label>'
     + '<label class="filter-checkbox"><input id="cycle-completed" type="checkbox">Полный цикл действительно завершён</label></div>'
     + '<button type="button" data-filter-action="salt_regeneration">Записать завершённый цикл</button>'
+    + '<p data-cycle-message role="status" aria-live="polite"></p>'
     + '<p>Неизмеренная доза изменяет только оценку запаса. Вода регенерации не вычитается повторно из показаний счётчика.</p></details>';
 }
 
@@ -190,8 +193,11 @@ function waterTreatmentPayload(root, action) {
   }
   if (action === 'salt_remove') return {date,kg:n('salt-remove-kg',true)};
   if (action === 'salt_regeneration') {
+    const cycleDate = root.querySelector('#cycle-date');
+    if (!cycleDate?.value) throw new Error('Укажите дату регенерации');
+    if (!cycleDate.reportValidity()) throw new Error('Проверьте дату регенерации: от последнего обслуживания бака до сегодняшнего дня');
     if (!root.querySelector('#cycle-completed')?.checked) throw new Error('Подтвердите завершение полного цикла');
-    return {date,completed:true,result:value('cycle-result'),salt_kg:n('cycle-salt'),water_m3:n('cycle-water'),refill_l:n('cycle-refill')};
+    return {date:cycleDate.value,completed:true,result:value('cycle-result'),salt_kg:n('cycle-salt'),water_m3:n('cycle-water'),refill_l:n('cycle-refill')};
   }
   if (action === 'treatment_old_profile') {
     return window.confirm('Применить предварительные 8 л смолы, 1 кг соли и 1,20 м³? Настройки профиля будут заменены; события останутся.') ? {} : null;
@@ -225,6 +231,12 @@ function paintWaterTreatment(panel, fill, guard) {
   const data=panel._filterData;
   if (!data) return;
   const salt=data.settings.salt;const state=data.salt_status;
+  const cycleDate=panel.shadowRoot.querySelector('#cycle-date');
+  if (cycleDate) {
+    cycleDate.max=data.today;
+    cycleDate.min=salt.last_tank_service || '';
+    if (fill && !cycleDate.value && !panel._filterDirtyControls.has('cycle-date')) panel._fillFilterControl('cycle-date',data.today,guard);
+  }
   const value = (number, unit, digits = 2) => waterCompactNumber(number, digits) == null
     ? 'Нет данных' : waterCompactNumber(number, digits) + (unit ? ' ' + unit : '');
   paintWaterDetail(panel, 'stock-known', state.known_remaining_kg == null ? 'Нет полных данных' : value(state.known_remaining_kg, 'кг'));

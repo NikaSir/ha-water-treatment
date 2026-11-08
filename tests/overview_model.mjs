@@ -305,6 +305,22 @@ test('manual empty salt and explicitly failed regeneration request attention', (
   assert.match(view.notice.title, /умягчение/i);
 });
 
+test('backfilled cycles do not replace the most recent regeneration or its result', () => {
+  for (const result of ['confirmed', 'failed']) {
+    const data = overviewFixture();
+    data.settings.salt.history[1].result = result;
+    const before = model(data);
+    data.settings.salt.history.push({action:'regeneration',date:'2026-11-02',
+      result:result === 'failed' ? 'confirmed' : 'failed',salt_kg:null,estimated_salt_kg:1});
+    const journal = JSON.stringify(data.settings.salt.history);
+    const after = model(data);
+    assert.equal(after.softener.regenerationDate, '2026-11-04');
+    assert.equal(after.softener.regenerationDetail, before.softener.regenerationDetail);
+    assert.equal(after.softener.tone, before.softener.tone);
+    assert.equal(JSON.stringify(data.settings.salt.history), journal, 'Reading the overview preserves audit order');
+  }
+});
+
 test('GH comes from the outlet even when ten newer inlet/BARRIER records exist', () => {
   const data = overviewFixture();
   for (let i = 0; i < 12; i++) data.settings.treatment.gh_history.push({

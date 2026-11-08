@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta006",
+  uiVersion: "0.2.0-beta007",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -474,7 +474,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._filterLoadError = true;
       paintWaterOverview(this);
       this._setText("[data-filter-message]", "Не удалось получить данные: " + waterErrorText(error));
-      for (const selector of ['[data-filter-settings-message]', '[data-salt-message]', '[data-treatment-message]', '[data-gh-message]']) {
+      for (const selector of ['[data-filter-settings-message]', '[data-salt-message]', '[data-cycle-message]', '[data-treatment-message]', '[data-gh-message]']) {
         const message = "Не удалось получить данные: " + waterErrorText(error);
         this._loadErrorMessages.set(selector, message);
         this._setText(selector, message);
@@ -623,7 +623,10 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
 
   _filterMessage(message, action, filter) {
     if (action === 'settings') this._setText('[data-filter-settings-message]', message);
-    else if (action.startsWith('salt_')) this._setText('[data-salt-message]', message);
+    else if (action.startsWith('salt_')) {
+      this._setText('[data-salt-message]', message);
+      if (action === 'salt_regeneration') this._setText('[data-cycle-message]', message);
+    }
     else if (action.startsWith('treatment_')) {
       this._setText('[data-treatment-message]', message);
       if (action === 'treatment_gh') this._setText('[data-gh-message]', message);
@@ -729,6 +732,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         .some(id => (this._filterControlEdits.get(id) || 0) !== (fillGuard.edits.get(id) || 0));
       feedback(action === 'salt_topup'
         ? 'Сохранено: досыпано ' + this._formatNumber(payload.kg, 1) + ' кг. Дата и масса показаны выше.'
+        : action === 'salt_regeneration' ? 'Сохранено: регенерация за ' + waterRecordedDate(payload.date) + '.'
         : newerCartridgeDraft ? 'Запись сохранена. Новые изменения ещё не сохранены.' : 'Сохранено');
     } catch (error) {
       feedback('Не сохранено: ' + waterErrorText(error));
