@@ -1,6 +1,6 @@
 {
   "name": "ha-water-treatment",
-  "version": "0.2.0-beta007",
+  "version": "0.2.0-beta008",
   "private": true,
   "type": "module",
   "scripts": {

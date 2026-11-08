@@ -2,7 +2,7 @@
 
 Published baseline, checked on 2026-11-08: [0.2.0-beta006](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta006), published at 09:08:33 UTC. Its tag targets merged `main` commit `c75c5236c809cd1ac1de393cd56af3b30f417cf2` ([PR #7](https://github.com/NikaSir/ha-water-treatment/pull/7)).
 
-Prepared version: `0.2.0-beta007`, declared in `custom_components/water_treatment/manifest.json`. This branch prepares the changes for review; no release/tag or live HA installation is performed here.
+Prepared version: `0.2.0-beta008`, declared in `custom_components/water_treatment/manifest.json`. This branch prepares the changes for review; no release/tag or live HA installation is performed here.
 
 Beta007 adds an independent regeneration date beside the completed-cycle form.
 Retrospective cycles after the last recorded tank service rebuild the salt stock

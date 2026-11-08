@@ -46,6 +46,23 @@ def validate_envelope(saved):
             raise ValueError(f'Повреждены записи {key}')
     if 'treatment' in cfg and not isinstance(cfg['treatment'].get('profile'), dict):
         raise ValueError('Повреждён профиль водоподготовки')
+    journal = saved.get('notifications')
+    if journal is not None:
+        if (not isinstance(journal, dict) or journal.get('schema') != 1
+                or type(journal.get('lifecycle_seq')) is not int
+                or not isinstance(journal.get('transitions'), list)
+                or not isinstance(journal.get('observations'), dict)
+                or not isinstance(journal.get('evidence'), dict)
+                or not isinstance(journal.get('salt_checks'), list)):
+            raise ValueError('Повреждён журнал уведомлений водоподготовки')
+        transitions = journal['transitions']
+        if (len(transitions) > 4096 or journal['lifecycle_seq'] != len(transitions)
+                or any(not isinstance(item, dict) or item.get('lifecycle_seq') != index
+                       or not isinstance(item.get('transition_id'), str)
+                       or not isinstance(item.get('observation'), dict)
+                       for index, item in enumerate(transitions, 1))
+                or len({item['transition_id'] for item in transitions}) != len(transitions)):
+            raise ValueError('Повреждена последовательность уведомлений водоподготовки')
     return deepcopy(saved)
 
 

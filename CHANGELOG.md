@@ -1,5 +1,12 @@
 # История изменений
 
+## 0.2.0-beta008 (prepared)
+
+- Add optional replayable notifications producer and persist maintenance evidence with the journal.
+- Require explicit baseline confirmation for verified volume evidence and distinguish a salt check performed now from a day-only entry.
+- Generate and verify deterministic build identity for the loaded runtime.
+- No release, live Home Assistant installation or iPhone delivery verification is implied.
+
 ## 0.2.0-beta007 — подготовлено, не опубликовано
 
 - В форме завершённого цикла добавлена отдельная обязательная «Дата регенерации» с сегодняшней датой HA по умолчанию и возможностью выбрать прошедший день. Дата обслуживания/удаления соли независима.

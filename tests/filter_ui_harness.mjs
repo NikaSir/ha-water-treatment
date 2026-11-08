@@ -580,3 +580,34 @@ test('reopening a panel after a lost response retains the pending operation',asy
     assert.equal(storage.size,0);
   } finally { delete context.sessionStorage; }
 });
+test('main replacement explicitly confirms the visible current baseline',async()=>{
+  const p=fixture();let sent, prompt;
+  p._filterData={revision:3,meter:353.456,today:'2026-11-05'};
+  p._hass={callWS:async msg=>{sent=msg;return {revision:4};}};
+  context.window.confirm=text=>{prompt=text;return true;};
+  await p._filterAction({dataset:{filterAction:'replace',filter:'main'},disabled:false});
+  assert.match(prompt,/353[.,]456/);
+  assert.equal(sent.payload.baseline,353.456);
+  assert.equal(sent.payload.baseline_confirmed,true);
+});
+test('salt now confirmation is tied to the selected current date',async()=>{
+  const p=fixture();let sent;
+  p._filterData={revision:3,today:'2026-11-05'};
+  for(const [id,value] of Object.entries({'salt-level':'enough','salt-check-date':'2026-11-05'})) {
+    const node=new NodeMock();node.value=value;p.shadowRoot.nodes.set('#'+id,node);
+  }
+  const now=new NodeMock();now.checked=true;p.shadowRoot.nodes.set('#salt-check-now',now);
+  p._hass={callWS:async msg=>{sent=msg;return {revision:4};}};
+  await p._filterAction({dataset:{filterAction:'salt_check'},disabled:false});
+  assert.equal(sent.payload.performed_now,true);
+  assert.equal(sent.payload.date,'2026-11-05');
+});
+test('salt now control is disabled and cleared for a historical date',()=>{
+  const p=fixture();p._filterData={today:'2026-11-05'};
+  const date=new NodeMock();date.value='2026-11-04';
+  const now=new NodeMock();now.checked=true;
+  p.shadowRoot.nodes.set('#salt-check-date',date);p.shadowRoot.nodes.set('#salt-check-now',now);
+  p._syncSaltNow();
+  assert.equal(now.disabled,true);assert.equal(now.checked,false);
+  date.value='2026-11-05';p._syncSaltNow();assert.equal(now.disabled,false);
+});
