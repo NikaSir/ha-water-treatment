@@ -1,16 +1,43 @@
 # Publication state
 
-Published baseline: [0.2.0-beta003](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta003), published on 2026-11-07. Its tag targets merged `main` commit `e94868fe1e07727597b2bfd3fa6da94e2373927c`.
+Published baseline, checked on 2026-11-08: [0.2.0-beta005](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta005), published at 07:50:39 UTC. Its tag targets merged `main` commit `8dfc9f82113bf48611efb4be4caff81395ee3d32`.
 
-Prepared version: `0.2.0-beta005`, declared in `custom_components/water_treatment/manifest.json`. This version is not yet published; this change does not create its release or tag.
+Prepared version: `0.2.0-beta006`, declared in `custom_components/water_treatment/manifest.json`. This branch prepares the changes for review; no release/tag or live HA installation is performed here.
 
-Beta004 adds an individual remaining-calendar-resource bar to each BARRIER stage in Overview, using the main-filter bar style. Each percentage uses its saved replacement date and backend deadline/days; each color follows that stage's state. Missing data remains unknown, due/overdue resource is zero, and failed reads or disconnection clear stale percentages. The existing regeneration-entry form and journal behavior are unchanged.
+Beta006 separates GH samples and equipment/filter metrics into readable labelled blocks. It explains the saved BARRIER softening interval using a read-only backend calculation basis. The existing manufacturer table remains unchanged: for three people both 0.7132 and 1.4264 °Ж map to two months. Automatic mode no longer requests a manual interval; dates, journals and other cartridge intervals are preserved.
 
-Published beta003 removed the large introductory card and duplicate reload button from Filters, moved explanations to Settings, placed replacement feedback beside the relevant cartridge, and unified the integration/sidebar filter icon.
+Published beta004 added individual BARRIER resource bars; beta005 added durable journal retry IDs, readable errors and explicit archived cleanup of earlier exact salt-record duplicates.
 
-After merge, publish a release/tag matching the manifest exactly, validate HACS, and verify actual installation separately. The old accounting repository's commit-based delivery observation does not establish delivery for this repository.
+Merging the version change into `main` triggers `.github/workflows/publish.yml`, which validates and publishes a matching release automatically. Merge/publication therefore requires the user's release instruction. HACS validation and actual installation are separate evidence; this branch alone is not an update delivered to a device.
 
 ## Verification record
+
+### Beta006 — 2026-11-08
+
+`npm run check` passes: 61 Python tests, 41 form tests, 30 overview-model tests,
+the tab/identity contract, deterministic bundle and NikaS standard check.
+The added model/store coverage verifies the two measured low-hardness examples,
+exact table boundaries, the existing six-month cap, missing/out-of-range inputs,
+manual mode and unchanged cartridge dates/intervals.
+
+Chromium acceptance uses the production bundle with synthetic API snapshots.
+The existing seven-size, light/dark overview matrix passes. A focused second
+suite covers all four detail pages at 320/390/430px in both themes, separate
+same-day GH records, saved metrics and unknown values, intact displayed dates,
+date-input width, automatic/manual interval controls, and failure/recovery.
+The manual interval draft is hidden in automatic mode and restored on return;
+saved hardness retains four-digit precision around table boundaries, and an
+unverified inherited salt dose remains explicitly labelled.
+Identical polling preserves DOM nodes, focus, nonzero scroll and form drafts.
+The GH, equipment, profile, stock and calculation-basis screenshots were
+visually inspected. These local results do not establish live HA or physical
+iPhone acceptance.
+
+Independent source review found one mode-switch display inconsistency and two
+precision/wording issues. All three were reproduced, corrected and covered by
+regression assertions; focused follow-up review found no blocking issues.
+
+### Earlier verification records
 
 Local beta004 checks passed on 2026-11-07: 30 overview-model tests, 35 form tests and 51 Python tests, plus the tab/identity contract, deterministic bundle and NikaS standard check. Model checks cover independent calendar intervals, short/leap and fractional months, full/zero/overdue resource, missing dates and unavailable snapshots. Chromium acceptance of the production bundle passed all seven phone/tablet/desktop viewports in both themes; it also verified four independent bars, per-stage colors, known zero versus unknown values, failure/disconnect clearing and recovery without remounting the resource nodes. Existing navigation, draft, save/conflict and local-feedback checks passed. The 430px BARRIER card preview was visually inspected. Independent source review found no blocking issues.
 
@@ -24,8 +51,8 @@ Local beta002 checks passed on 2026-11-07: 26 overview-model tests, 31 form test
 
 Browser checks use synthetic API snapshots. Real Home Assistant cold-load, Nabu Casa access, installation/restart, live readings and physical iPhone acceptance remain separate gates; desktop browser emulation does not establish those results.
 
-## Beta005 verification — 2026-11-08
+## Beta005 verification — 2026-11-08 (historical preparation record)
 
 Added readable structured WebSocket errors, recovery of per-form read-error notices, durable operation IDs for retry safety, and explicit archived cleanup of exact old salt-ledger duplicates. The cleanup leaves current balances and later top-ups unchanged; no live journal was edited.
 
-Full `npm run check` passes locally. Regression coverage includes retry after backend restart, concurrent retries, retry after disk failure, panel recreation after a lost response, structured errors, recovery, and archival cleanup without changing balances. Browser acceptance could not launch because this runtime has no installed Chromium executable. Live HA/iPhone acceptance remains pending. No release/tag has been created.
+Full `npm run check` passed locally at preparation time. Regression coverage includes retry after backend restart, concurrent retries, retry after disk failure, panel recreation after a lost response, structured errors, recovery, and archival cleanup without changing balances. Browser acceptance could not launch in that preparation runtime because Chromium was unavailable. No release/tag had been created at that point; subsequent publication is recorded at the top of this file. Live HA/iPhone acceptance remains separate.

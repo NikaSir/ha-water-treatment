@@ -28,6 +28,10 @@ export function overviewFixture() {
       full_cycles: 4, nominal_m3: 4.8, scenario_days: null},
     treatment_status: {stage_minutes: 92, latest_gh: [
       {date: '2026-11-05', point: 'softener', sample_ml: 5, drops: 4, dgh: 4, zh: 1.4264}]},
+    softening_basis: {mode: 'table', people: 3, hardness: 1.4264, reason: 'table',
+      band_max: 3, table_months: 2, recommended_months: 2, applied_months: 2,
+      limit_months: 6, capped: false,
+      source_url: 'https://www.barrier.ru/images/manuals/BARRIER_EXPERT_instruction.pdf'},
     status: {
       main: {state: 'ok', days: 145, deadline: '2027-04-01', used: 12, remaining: 88, percent: 88},
       ferrostop: {state: 'ok', days: 145, deadline: '2027-04-01', used: null, remaining: null, percent: null},
@@ -50,6 +54,8 @@ export function emptyOverviewFixture() {
     estimated_remaining_kg: null, full_cycles: null, nominal_m3: null, scenario_days: null};
   data.settings.hardness = null;
   data.settings.cartridges.softening.months = null;
+  Object.assign(data.softening_basis, {hardness: null, reason: 'missing_hardness',
+    band_max: null, table_months: null, recommended_months: null, applied_months: null});
   for (const key of Object.keys(data.status)) data.status[key] = {
     state: 'unconfigured', days: null, used: null, remaining: null, percent: null};
   return data;

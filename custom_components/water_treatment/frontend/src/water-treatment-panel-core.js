@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta005",
+  uiVersion: "0.2.0-beta006",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -395,7 +395,10 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     return '<p class="filter-feedback" data-filter-message role="status" aria-live="polite">Загрузка данных…</p>'
       + cards.map(([key, title]) => '<section class="card filter-card" data-filter-card="' + key + '">'
         + '<h2>' + title + '</h2><strong data-filter-status="' + key + '">Нет данных</strong>'
+        + waterDetailMarkup(key, [['days', 'Осталось'], ['deadline', 'Замена до'],
+          ...(key === 'main' ? [['used', 'После замены'], ['remaining', 'Остаток объёма'], ['percent', 'Ресурс по объёму']] : [])])
         + '<p data-filter-detail="' + key + '"></p>'
+        + (key === 'softening' ? '<p data-softening-card-basis></p>' : '')
         + '<div class="filter-form">' + input('date-' + key, 'Дата последней замены', 'date')
         + (key === 'main' ? input('baseline-main', 'Показание при замене, м³', 'number', 'min="0" step="0.001"') : '')
         + '</div><div class="filter-actions"><button type="button" data-filter-action="record" data-filter="' + key + '">Сохранить дату'
@@ -420,12 +423,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + '<section class="card filter-settings"><h2>Настройки ЭКСПЕРТ Комплекс</h2><div class="filter-form">'
       + input('filter-people', 'Количество пользователей', 'number', 'min="1" max="20" step="1" required')
       + input('filter-hardness', 'На входе БАРЬЕР после Ёлки, °Ж (мг-экв/л)', 'number', 'min="0.0001" max="100" step="0.0001"')
+      + '</div>' + waterSofteningBasisMarkup() + '<div class="filter-form">'
       + '<label>Срок смягчения<select id="filter-auto"><option value="auto">По таблице БАРЬЕР</option>'
       + '<option value="manual">Задать вручную</option></select></label>'
       + input('months-ferrostop', 'Ферростоп, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
-      + input('months-softening', 'Смягчение вручную, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
+      + input('months-softening', 'Смягчение вручную, месяцев', 'number', 'min="0.5" max="12" step="0.5"')
       + input('months-postcarbon', 'Посткарбон, месяцев', 'number', 'min="0.5" max="12" step="0.5" required')
-      + '</div><details class="filter-help"><summary>Профиль и сроки обслуживания</summary>'
+      + '</div><p data-softening-form-hint></p><details class="filter-help"><summary>Профиль и сроки обслуживания</summary>'
       + '<p>Профиль ЭКСПЕРТ Комплекс выбран для обслуживания; маркировку установленных картриджей нужно сверить отдельно.</p>'
       + '<p>Расчёт для 1–3 пользователей и жёсткости до 5 мг-экв/л; не более 6 месяцев. Вне таблицы задайте срок вручную. Начальные сроки Ферростопа и Посткарбона — 6 месяцев. Полмесяца = 15 дней.</p></details>'
       + '<button type="button" data-filter-action="settings">Сохранить настройки</button>'
@@ -478,18 +482,22 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this.shadowRoot.querySelectorAll("[data-filter-status]").forEach(node => { node.textContent = "Нет данных"; });
       this.shadowRoot.querySelectorAll("[data-filter-detail]").forEach(node => { node.textContent = ""; });
       this._setText('[data-salt-status]', 'Нет данных');
-      this._setText('[data-salt-detail]', '');
-      this._setText('[data-salt-balance]', 'Нет данных');
-      this._setText('[data-salt-coverage]', '');
-      this._setText('[data-treatment-summary]', 'Нет данных');
-      this._setText('[data-gh-history]', 'Нет данных');
+      this.shadowRoot.querySelectorAll('[data-detail-value]').forEach(node => { node.textContent = 'Нет данных'; });
+      this.shadowRoot.querySelectorAll('[data-detail-note]').forEach(node => { node.textContent = ''; });
+      this.shadowRoot.querySelectorAll('[data-filter-card], [data-salt-card]').forEach(node => { node.dataset.status = 'unknown'; });
+      this._setText('[data-salt-coverage-note]', 'Нет данных для оценки');
+      this._setText('[data-treatment-codes]', '');
+      paintWaterGhHistory(this, [], 'Нет данных');
+      paintWaterSofteningBasis(this);
     }
   }
 
   _saltMarkup() {
     return '<section class="card filter-card" data-salt-card><h2>Ёлка — запас соли</h2>'
-      + '<p>WSC-0,5-Rx-(SC) · кабинетный умягчитель</p><strong data-salt-status>Нет данных</strong>'
-      + '<p data-salt-detail></p><p>Состояние по ручной проверке. Учтённая масса и оценка по дозам показаны отдельно.</p>'
+      + '<div class="device-identity"><span>Кабинетный умягчитель</span><strong>WSC-0,5-Rx-(SC)</strong>'
+      + '<span>Клапан <b>Runxin F69A3</b></span></div><strong data-salt-status>Нет данных</strong>'
+      + waterDetailMarkup('salt', [['checked', 'Последняя проверка'], ['next', 'До проверки'], ['added', 'Последняя досыпка', true]])
+      + '<p>Состояние запаса — по ручной проверке.</p>'
       + '<div class="filter-form"><label>Досыпано, кг<input id="salt-kg" type="number" min="0.1" max="100" step="0.1"></label>'
       + '<label>Запас при проверке<select id="salt-level"><option value="enough">Достаточно</option>'
       + '<option value="low">Мало — досыпать</option><option value="empty">Соль закончилась</option></select></label></div>'
@@ -514,11 +522,11 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     if (!cfg || !state) return;
     const labels = {unknown:'Запас ещё не проверен',ok:'По последней проверке: достаточно',check:'Пора проверить соль',low:'Мало соли — досыпать',empty:'Соль закончилась — досыпать'};
     this._setText('[data-salt-status]',labels[state.state]);
-    const details = [];
-    if (cfg.last_checked) details.push('Проверка: ' + cfg.last_checked.split('-').reverse().join('.'));
-    if (state.days != null) details.push(state.days > 0 ? 'До проверки: ' + state.days + ' дн.' : 'Проверка требуется');
-    if (cfg.last_added) details.push('Досыпка: ' + cfg.last_added.split('-').reverse().join('.') + ', ' + cfg.last_added_kg + ' кг');
-    this._setText('[data-salt-detail]',details.join(' · '));
+    paintWaterDetail(this, 'salt-checked', waterRecordedDate(cfg.last_checked));
+    paintWaterDetail(this, 'salt-next', state.days == null ? 'Нет данных'
+      : state.days > 0 ? state.days + ' дн.' : state.days === 0 ? 'Сегодня' : 'Просрочена на ' + Math.abs(state.days) + ' дн.');
+    paintWaterDetail(this, 'salt-added', cfg.last_added_kg == null ? 'Не записана' : waterCompactNumber(cfg.last_added_kg) + ' кг',
+      cfg.last_added ? waterRecordedDate(cfg.last_added) : '');
     this._setText('[data-salt-history]',cfg.history.slice(-30).reverse().map(waterSaltEventText).join(' • ') || 'История пока пуста');
     const card=this.shadowRoot.querySelector('[data-salt-card]');
     if(card) card.dataset.status = state.state === 'ok' ? 'ok' : ['low','empty'].includes(state.state) ? 'due' : state.state === 'check' ? 'warning' : 'unknown';
@@ -531,6 +539,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   _recordFilterEdit(id) {
     this._filterControlEdits.set(id, (this._filterControlEdits.get(id) || 0) + 1);
     this._filterDirtyControls.add(id);
+    if (id === 'filter-auto') paintWaterSofteningMode(this);
     const filter = id === 'baseline-main' ? 'main' : id.startsWith('date-') ? id.slice(5) : null;
     if (['main','ferrostop','softening','postcarbon'].includes(filter)) {
       this._setText('[data-filter-feedback="' + filter + '"]', '');
@@ -571,10 +580,14 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     Object.entries(data.status).forEach(([key, item]) => {
       this._setText('[data-filter-status="' + key + '"]', labels[item.state]);
       const parts = [];
-      if (item.days != null) parts.push(item.days < 0 ? 'Просрочено дней: ' + Math.abs(item.days) : 'Осталось дней: ' + item.days);
-      if (item.deadline) parts.push('Замена до: ' + item.deadline.split('-').reverse().join('.'));
-      if (item.used != null) parts.push('После замены: ' + this._formatNumber(item.used, 3) + ' м³; осталось: '
-        + this._formatNumber(Math.max(0, item.remaining), 3) + ' м³ (' + Math.round(item.percent) + '%)');
+      paintWaterDetail(this, key + '-days', item.days == null ? 'Нет данных'
+        : item.days === 0 ? 'Сегодня' : Math.abs(item.days) + ' дн.', '', item.days < 0 ? 'Просрочено' : 'Осталось');
+      paintWaterDetail(this, key + '-deadline', item.deadline ? waterRecordedDate(item.deadline) : 'Нет данных');
+      if (key === 'main') {
+        paintWaterDetail(this, 'main-used', item.used == null ? 'Нет данных' : waterCompactNumber(item.used, 3) + ' м³');
+        paintWaterDetail(this, 'main-remaining', item.remaining == null ? 'Нет данных' : waterCompactNumber(Math.max(0, item.remaining), 3) + ' м³');
+        paintWaterDetail(this, 'main-percent', item.percent == null ? 'Нет данных' : Math.round(item.percent) + '%', 'Осталось');
+      }
       if (key === 'main' && item.used == null) parts.push('Нет расхода: проверьте счётчик и показание при замене');
       if (key === 'softening' && cfg.softening_auto && cfg.cartridges.softening.months == null) parts.push('Укажите жёсткость или задайте срок вручную');
       this._setText('[data-filter-detail="' + key + '"]', parts.join(' · '));
@@ -588,13 +601,15 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         'date-main': cfg.main.date, 'baseline-main': cfg.main.baseline };
       Object.entries(cfg.cartridges).forEach(([key, item]) => {
         values['date-' + key] = item.date;
-        values['months-' + key] = item.months || 6;
+        values['months-' + key] = item.months ?? null;
       });
       Object.entries(values).forEach(([id, value]) => this._fillFilterControl(id,value,guard));
       this._filtersFilled = true;
     }
     this._paintSalt(fill, guard);
     paintWaterTreatment(this, fill, guard);
+    paintWaterSofteningBasis(this);
+    paintWaterSofteningMode(this);
     if (fill && (!guard || (!guard.ids && !guard.preserveDrafts))) {
       for (const [section,ids] of [['settings',WATER_FILTER_SETTING_IDS],['treatment_settings',WATER_TREATMENT_SETTING_IDS],['salt_settings',['salt-days','salt-dose','salt-dose-basis']]]) {
         if (!guard || ids.every(id=>(this._filterControlEdits.get(id)||0)===(guard.edits.get(id)||0))) this._filterDraftBases.delete(section);
@@ -642,15 +657,19 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       const basis = root.querySelector('#salt-dose-basis');
       if (action === 'salt_settings' && basis) payload.dose_basis = basis.value;
     } else if (action === 'settings') {
+      const automatic = value('filter-auto') === 'auto';
       for (const id of WATER_FILTER_SETTING_IDS) {
+        if (automatic && id === 'months-softening') continue;
         const node = root.querySelector('#' + id);
         if (!node.reportValidity()) return;
       }
       payload = { main: { profile: value('filter-profile'), volume: Number(value('filter-volume')),
         months: Number(value('filter-months')), mode: value('filter-mode') }, people: Number(value('filter-people')),
         hardness: value('filter-hardness') ? Number(value('filter-hardness')) : null,
-        softening_auto: value('filter-auto') === 'auto',
-        months: Object.fromEntries(['ferrostop', 'softening', 'postcarbon'].map(key => [key, Number(value('months-' + key))])) };
+        softening_auto: automatic,
+        months: Object.fromEntries(['ferrostop', 'softening', 'postcarbon']
+          .filter(key => !automatic || key !== 'softening')
+          .map(key => [key, Number(value('months-' + key))])) };
     } else {
       payload = { filter: button.dataset.filter };
       if (action === 'record') {

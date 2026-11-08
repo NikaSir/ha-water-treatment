@@ -56,6 +56,21 @@ class FilterStoreTests(unittest.IsolatedAsyncioTestCase):
         self.hass = SimpleNamespace(states=SimpleNamespace(get=lambda entity: self.state),data={})
         self.manager = self.adapter.FilterStore(self.hass)
 
+    async def test_snapshot_explains_saved_hardness_without_writing_or_resetting_dates(self):
+        await self.manager.load()
+        await self.manager.mutate('record', {'filter': 'softening', 'date': '2026-10-01'}, 0)
+        await self.manager.mutate('treatment_gh', {
+            'drops': 2, 'point': 'softener', 'apply_to_filter': True}, 1)
+        before = deepcopy(self.store.saved)
+        snapshot = self.manager.snapshot()
+        self.assertEqual(snapshot['softening_basis']['hardness'], 0.7132)
+        self.assertEqual(snapshot['softening_basis']['applied_months'], 2)
+        self.assertEqual(snapshot['softening_basis']['band_max'], 3)
+        self.assertEqual(snapshot['status']['softening']['deadline'], '2026-12-01')
+        self.assertEqual(snapshot['settings']['cartridges']['softening']['date'], '2026-10-01')
+        self.assertEqual(self.store.saved, before)
+        self.assertEqual(self.manager.revision, 2)
+
     async def test_replacement_reload_and_settings_never_reset_baseline(self):
         await self.manager.load()
         await self.manager.mutate('replace',{'filter':'main'},0)

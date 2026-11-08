@@ -40,6 +40,45 @@ test('settings submit custom controls and revision without replacement baseline'
   assert.equal(sent.payload.main.baseline,undefined);assert.equal(sent.payload.main.date,undefined);
   assert.equal(p.shadowRoot.querySelector('[data-filter-settings-message]').textContent,'Сохранено');
 });
+test('automatic softening settings do not require a manual interval',async()=>{
+  const p=fixture();let sent;
+  const months=p.shadowRoot.querySelector('#months-softening');
+  months.value='';months.reportValidity=()=>false;
+  p.shadowRoot.querySelector('#filter-hardness').value='0.7132';
+  p._hass={callWS:async msg=>{sent=msg;return {revision:4};}};
+  await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
+  assert.ok(sent,'A valid hardness must be savable without entering an unrelated manual interval');
+  assert.equal(sent.payload.softening_auto,true);
+  assert.equal(sent.payload.hardness,0.7132);
+  assert.equal(Object.hasOwn(sent.payload.months,'softening'),false);
+  assert.equal(sent.payload.months.ferrostop,6);
+  assert.equal(sent.payload.months.postcarbon,6);
+});
+test('manual softening interval remains required and is submitted explicitly',async()=>{
+  const p=fixture();let sent;
+  p.shadowRoot.querySelector('#filter-auto').value='manual';
+  const months=p.shadowRoot.querySelector('#months-softening');
+  months.value='';months.reportValidity=()=>false;
+  p._hass={callWS:async msg=>{sent=msg;return {revision:4};}};
+  await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
+  assert.equal(sent,undefined);
+  months.value='4';months.reportValidity=()=>true;
+  await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
+  assert.equal(sent.payload.softening_auto,false);
+  assert.equal(sent.payload.months.softening,4);
+});
+test('saved hardness explanation retains precision around table boundaries',()=>{
+  const p=fixture();
+  for(const selector of ['[data-softening-input]','[data-softening-card-basis]'])
+    p.shadowRoot.nodes.set(selector,new NodeMock());
+  for(const [hardness,band,months,display] of [[0.7132,3,2,'0,7132'],[3.0001,4,1.5,'3,0001'],[4.0001,5,1,'4,0001'],[5.0001,null,null,'5,0001']]) {
+    p._filterData={softening_basis:{mode:'table',people:3,hardness,band_max:band,
+      applied_months:months,reason:band ? 'table' : 'hardness_out_of_range',capped:false}};
+    context.paintWaterSofteningBasis(p);
+    assert.equal(p.shadowRoot.querySelector('[data-softening-input]').textContent,display+' °Ж');
+    if(band) assert.ok(p.shadowRoot.querySelector('[data-softening-card-basis]').textContent.includes(display+' °Ж'));
+  }
+});
 test('failed save preserves loaded revision and reports failure',async()=>{
   const p=fixture();p._hass={callWS:async()=>{throw new Error('conflict');}};
   await p._filterAction({dataset:{filterAction:'settings'},disabled:false});
@@ -138,7 +177,7 @@ function saltFixture() {
     root.nodes.set('#'+id,node);
   }
   for(const [selector,node] of root.nodes) p.shadowRoot.nodes.set(selector,node);
-  for(const selector of ['[data-salt-status]','[data-salt-detail]','[data-salt-history]','[data-salt-message]','[data-salt-card]'])
+  for(const selector of ['[data-salt-status]','[data-detail-value="salt-added"]','[data-detail-note="salt-added"]','[data-salt-history]','[data-salt-message]','[data-salt-card]'])
     p.shadowRoot.nodes.set(selector,new NodeMock());
   p._hass={user:{is_admin:true}};
   return p;
@@ -166,7 +205,7 @@ test('a topup during background refresh waits and saves once with the refreshed 
   assert.equal(sent[1].action,'salt_topup');assert.equal(sent[1].revision,4);
   assert.equal(sent[1].payload.kg,5);
   assert.equal(p._filterData.settings.salt.last_added_kg,5);
-  assert.match(p.shadowRoot.querySelector('[data-salt-detail]').textContent,/5 кг/);
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="salt-added"]').textContent,'5 кг');
   assert.match(p.shadowRoot.querySelector('[data-salt-message]').textContent,/5.*кг/);
   assert.equal(p._filterBusy,false);assert.equal(button.disabled,false);
 });
@@ -186,7 +225,7 @@ test('acknowledgement does not clear a newer salt draft typed during the write',
   const input=p._views.get('filters').querySelector('#salt-kg');input.value='10';
   write.resolve(saltSnapshot(4,5));await saving;
   assert.equal(input.value,'10');
-  assert.match(p.shadowRoot.querySelector('[data-salt-detail]').textContent,/5 кг/);
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="salt-added"]').textContent,'5 кг');
 });
 
 test('failed background read rejects a pending topup visibly without losing its mass',async()=>{
@@ -206,7 +245,8 @@ test('failed background read rejects a pending topup visibly without losing its 
 test('a new panel paints the saved topup while keeping inspection unknown',async()=>{
   const p=saltFixture();p._hass.callWS=async()=>saltSnapshot(4,5);
   await p._loadFilters();
-  assert.match(p.shadowRoot.querySelector('[data-salt-detail]').textContent,/27\.10\.2026.*5 кг/);
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="salt-added"]').textContent,'5 кг');
+  assert.equal(p.shadowRoot.querySelector('[data-detail-note="salt-added"]').textContent,'27.10.2026');
   assert.match(p.shadowRoot.querySelector('[data-salt-history]').textContent,/досыпано 5 кг/);
   assert.match(p.shadowRoot.querySelector('[data-salt-status]').textContent,/ещё не проверен/);
 });
@@ -252,7 +292,10 @@ function treatmentFixture() {
     const node=new NodeMock();node.value=value;node.reportValidity=()=>true;root.nodes.set('#'+id,node);p.shadowRoot.nodes.set('#'+id,node);
   }
   for(const id of ['gh-apply','cycle-completed']) {const node=new NodeMock();node.checked=true;root.nodes.set('#'+id,node);}
-  for(const selector of ['[data-treatment-message]','[data-treatment-summary]','[data-gh-message]','[data-gh-history]','[data-salt-balance]','[data-salt-coverage]']) p.shadowRoot.nodes.set(selector,new NodeMock());
+  for(const selector of ['[data-treatment-message]','[data-gh-message]',
+    '[data-detail-value="stock-known"]','[data-detail-value="stock-estimated"]','[data-detail-note="stock-estimated"]',
+    '[data-detail-value="profile-stages"]','[data-detail-value="profile-resin"]','[data-detail-note="profile-resin"]',
+    '[data-gh-point="0"]','[data-gh-drops="0"]','[data-gh-zh="0"]']) p.shadowRoot.nodes.set(selector,new NodeMock());
   context.window.confirm=()=>true;
   return p;
 }
@@ -302,11 +345,21 @@ test('profile saves editable assumptions rather than deriving salt consumption f
 test('saved treatment data renders source points, tentative parameters and estimated stock separately',()=>{
   const p=treatmentFixture();const data=fullTreatmentSnapshot(4);
   p._filterData=data;p._paintFilters(true);
-  assert.match(p.shadowRoot.querySelector('[data-salt-balance]').textContent,/нет полных данных.*оценка по дозам: 4.*кг/);
-  assert.match(p.shadowRoot.querySelector('[data-treatment-summary]').textContent,/92 мин.*8.*предварительно/);
-  assert.match(p.shadowRoot.querySelector('[data-gh-history]').textContent,/вход БАРЬЕР.*14.*4,99/);
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="stock-known"]').textContent,'Нет полных данных');
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="stock-estimated"]').textContent,'4 кг');
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="profile-stages"]').textContent,'92 мин');
+  assert.equal(p.shadowRoot.querySelector('[data-detail-value="profile-resin"]').textContent,'8 л');
+  assert.equal(p.shadowRoot.querySelector('[data-detail-note="profile-resin"]').textContent,'Предварительно');
+  assert.match(p.shadowRoot.querySelector('[data-gh-point="0"]').textContent,/вход БАРЬЕР/);
+  assert.equal(p.shadowRoot.querySelector('[data-gh-drops="0"]').textContent,'14 кап.');
+  assert.equal(p.shadowRoot.querySelector('[data-gh-zh="0"]').textContent,'≈ 4,99 °Ж');
   assert.equal(p.shadowRoot.querySelector('#salt-dose-basis').value,'assumed');
   assert.equal(p.shadowRoot.querySelector('#treatment-resin').value,8);
+  assert.match(p.shadowRoot.querySelector('[data-detail-note="stock-estimated"]').textContent,/доза предварительная/);
+  data.settings.salt.dose_basis='legacy_unverified';p._paintFilters(false);
+  assert.match(p.shadowRoot.querySelector('[data-detail-note="stock-estimated"]').textContent,/унаследована, не проверена/);
+  data.settings.salt.dose_basis='measured';p._paintFilters(false);
+  assert.match(p.shadowRoot.querySelector('[data-detail-note="stock-estimated"]').textContent,/доза измерена/);
 });
 
 function fullTreatmentSnapshot(revision) {
