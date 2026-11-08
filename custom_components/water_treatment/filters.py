@@ -17,6 +17,7 @@ from .treatment_model import treatment_defaults, treatment_action, treatment_sta
 from .filter_model import CARTRIDGES, defaults, softening_basis, status, update_settings
 from .migration import assert_no_legacy_writer, load_envelope
 from .journal_storage import JournalStore as Store
+from .notification_model import initial_state, capture, evaluate, late_replacement
 
 
 class FilterStore:
@@ -27,6 +28,7 @@ class FilterStore:
         self.revision = 0
         self.lock = asyncio.Lock()
         self.envelope = {}
+        self.publisher = None
 
     async def load(self):
         saved, needs_save = await load_envelope(self.hass, self.store)
@@ -62,6 +64,14 @@ class FilterStore:
             return value / 1000
         return value if unit in ('m³', 'm3', 'м³', 'м3') else None
 
+    def meter_sample_time(self):
+        state = self.hass.states.get('sensor.schetchik_vody_svd_20_0020989_obnovleno')
+        return None if state is None else state.state
+
+    def notification_evaluate(self, journal, data, revision, now):
+        return evaluate(journal, data, now.date(), self.meter(), self.meter_sample_time(),
+                        revision, now, status, salt_status)
+
     def snapshot(self):
         assert_no_legacy_writer(self.hass)
         today = dt_util.now().date()
@@ -75,6 +85,17 @@ class FilterStore:
                 'meter': meter, 'today': today.isoformat(),
                 'status': {'main': status(self.data['main'], today, meter),
                            **{key: status(self.data['cartridges'][key], today) for key in CARTRIDGES}}}
+
+    async def refresh_notifications(self):
+        async with self.lock:
+            assert_no_legacy_writer(self.hass)
+            journal = self.notification_evaluate(deepcopy(self.envelope.get('notifications') or initial_state()),
+                                                 self.data, self.revision, dt_util.now())
+            if journal != self.envelope.get('notifications'):
+                envelope = deepcopy(self.envelope)
+                envelope['notifications'] = journal
+                await self.store.async_save(envelope)
+                self.envelope = envelope
 
     async def mutate(self, action, payload, revision, operation_id=None):
         async with self.lock:
@@ -92,6 +113,9 @@ class FilterStore:
             data = deepcopy(self.data)
             if action.startswith('salt_'):
                 data['salt'] = salt_action(data['salt'], action[5:], payload, dt_util.now().date())
+                if (action == 'salt_check' and payload.get('performed_now') is True
+                        and data['salt']['history'][-1]['date'] == dt_util.now().date().isoformat()):
+                    data['salt']['history'][-1]['performed_at'] = dt_util.now().isoformat()
             elif action.startswith('treatment_'):
                 kind = action[len('treatment_'):]
                 apply = payload.get('apply_to_filter', False)
@@ -127,16 +151,31 @@ class FilterStore:
                     current = self.meter()
                     if current is not None and baseline > current:
                         raise ValueError('Показание при замене больше текущего')
+                    if payload.get('baseline_confirmed') is True:
+                        confirmed = payload.get('baseline')
+                        if isinstance(confirmed, bool) or confirmed is None or float(confirmed) != baseline:
+                            raise ValueError('Показание изменилось; подтвердите актуальное значение')
                     config['baseline'] = baseline
             revision_next = self.revision + 1
             envelope = deepcopy(self.envelope)
             envelope.update(settings=data, revision=revision_next)
+            now = dt_util.now()
+            journal = deepcopy(envelope.get('notifications') or initial_state())
+            journal = self.notification_evaluate(journal, self.data, self.revision, now)
+            journal = capture(journal, action, payload, data, revision_next, operation_id, now, now.date())
+            journal = late_replacement(journal, self.data, data, action, payload, revision_next, now, status)
+            envelope['notifications'] = self.notification_evaluate(journal, data, revision_next, now)
             if operation_id is not None:
                 envelope.setdefault('operations', {})[operation_id] = {
                     'action': action, 'payload': deepcopy(payload)}
             await self.store.async_save(envelope)
             self.envelope = envelope
             self.data, self.revision = data, revision_next
+            if self.publisher is not None:
+                try:
+                    self.publisher.schedule()
+                except Exception:
+                    pass  # The committed maintenance must remain successful.
             return self.snapshot()
 
 

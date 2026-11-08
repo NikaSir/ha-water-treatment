@@ -2,6 +2,7 @@
 const WATER_FILTER_SETTING_IDS = ['filter-profile','filter-volume','filter-months','filter-mode','filter-people','filter-hardness','filter-auto','months-ferrostop','months-softening','months-postcarbon'];
 const WATER_TREATMENT_SETTING_IDS = ['treatment-resin','treatment-resin-basis','treatment-cycle','treatment-cycle-basis','treatment-max-days','treatment-backwash','treatment-brine','treatment-refill','treatment-rinse','treatment-daily','treatment-resin-year','treatment-resin-date'];
 const WATER_EVENT_RESETS = {
+  salt_check: {'salt-check-now':false},
   salt_service: {'salt-remaining':'','salt-added':'','salt-removed':'','salt-refill-l':''},
   salt_remove: {'salt-remove-kg':''},
   salt_regeneration: {'cycle-salt':'','cycle-water':'','cycle-refill':'','cycle-result':'unverified','cycle-completed':false},
@@ -30,7 +31,7 @@ function waterFilterFillIds(action, payload) {
   if (action === 'treatment_settings') ids=WATER_TREATMENT_SETTING_IDS;
   if (action === 'treatment_old_profile') ids=[...WATER_TREATMENT_SETTING_IDS.filter(id=>!['treatment-resin-year','treatment-resin-date'].includes(id)),'salt-dose','salt-dose-basis'];
   if (action === 'salt_settings') ids=['salt-days','salt-dose','salt-dose-basis'];
-  if (action === 'salt_check') ids=['salt-level'];
+  if (action === 'salt_check') ids=['salt-level','salt-check-date','salt-check-now'];
   if (action === 'record' || action === 'replace') ids=['date-'+payload.filter, ...(payload.filter === 'main' ? ['baseline-main'] : [])];
   if (action === 'treatment_gh' && payload.apply_to_filter) ids=[...ids,'filter-hardness','months-softening'];
   return new Set(ids);

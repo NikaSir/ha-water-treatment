@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta007",
+  uiVersion: "0.2.0-beta008",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -252,6 +252,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     });
     this.shadowRoot.addEventListener("change", (event) => {
       if (event.target && event.target.id) this._recordFilterEdit(event.target.id);
+      if (event.target.id === "salt-check-date") this._syncSaltNow();
       if (event.target.id === "filter-profile") {
         const profile = event.target.value;
         this.shadowRoot.querySelector("#filter-volume").value = profile === "wound" ? 200 : 100;
@@ -500,7 +501,9 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + '<p>Состояние запаса — по ручной проверке.</p>'
       + '<div class="filter-form"><label>Досыпано, кг<input id="salt-kg" type="number" min="0.1" max="100" step="0.1"></label>'
       + '<label>Запас при проверке<select id="salt-level"><option value="enough">Достаточно</option>'
-      + '<option value="low">Мало — досыпать</option><option value="empty">Соль закончилась</option></select></label></div>'
+      + '<option value="low">Мало — досыпать</option><option value="empty">Соль закончилась</option></select></label>'
+      + '<label>Дата проверки<input id="salt-check-date" type="date"></label>'
+      + '<label class="filter-checkbox"><input id="salt-check-now" type="checkbox"><span>Проверка выполнена сейчас (для сегодняшней даты)</span></label></div>'
       + '<div class="filter-actions"><button type="button" data-filter-action="salt_topup">Записать досыпку</button>'
       + '<button type="button" data-filter-action="salt_check">Запас проверен</button></div>'
       + '<p data-salt-message role="status" aria-live="polite">Введите массу и нажмите «Записать досыпку».</p>'
@@ -534,6 +537,14 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       const values={'salt-days':cfg.check_days,'salt-dose':cfg.dose,'salt-level':cfg.level === 'unknown' ? 'enough' : cfg.level};
       Object.entries(values).forEach(([id,value]) => this._fillFilterControl(id,value,guard));
     }
+  }
+
+  _syncSaltNow() {
+    const date = this.shadowRoot.querySelector('#salt-check-date');
+    const now = this.shadowRoot.querySelector('#salt-check-now');
+    if (!date || !now) return;
+    now.disabled = !this._filterData?.today || date.value !== this._filterData.today;
+    if (now.disabled) now.checked = false;
   }
 
   _recordFilterEdit(id) {
@@ -606,6 +617,9 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       Object.entries(values).forEach(([id, value]) => this._fillFilterControl(id,value,guard));
       this._filtersFilled = true;
     }
+    const saltDate = this.shadowRoot.querySelector('#salt-check-date');
+    if (saltDate && !saltDate.value && !this._filterControlEdits.get('salt-check-date')) saltDate.value = data.today;
+    this._syncSaltNow();
     this._paintSalt(fill, guard);
     paintWaterTreatment(this, fill, guard);
     paintWaterSofteningBasis(this);
@@ -657,6 +671,15 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       for (const id of ids) { const node=root.querySelector('#'+id); if (!node.value || !node.reportValidity()) { feedback('Заполните параметры соли'); return; } }
       payload = action === 'salt_settings' ? {check_days:Number(value('salt-days')),dose:Number(value('salt-dose'))}
         : action === 'salt_topup' ? {kg:Number(value('salt-kg'))} : {level:value('salt-level')};
+      if (action === 'salt_check') {
+        const checkedDate = root.querySelector('#salt-check-date');
+        const now = root.querySelector('#salt-check-now');
+        if (checkedDate) {
+          if (!checkedDate.value || !checkedDate.reportValidity()) { feedback('Укажите дату проверки'); return; }
+          payload.date = checkedDate.value;
+          payload.performed_now = !!now?.checked && checkedDate.value === this._filterData?.today;
+        }
+      }
       const basis = root.querySelector('#salt-dose-basis');
       if (action === 'salt_settings' && basis) payload.dose_basis = basis.value;
     } else if (action === 'settings') {
@@ -683,7 +706,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
           payload.baseline = Number(value('baseline-main'));
         }
       }
-      if (action === 'replace' && !window.confirm('Картридж заменён сегодня? Начать новый отсчёт ресурса?')) return;
+      if (payload.filter === 'main') {
+        const baseline = action === 'record' ? payload.baseline : this._filterData?.meter;
+        if (baseline == null || !Number.isFinite(Number(baseline))) { feedback('Нет показания счётчика для подтверждения'); return; }
+        if (!window.confirm('Подтвердите показание счётчика при замене: ' + baseline + ' м³. Картридж заменён?')) return;
+        payload.baseline = Number(baseline);
+        payload.baseline_confirmed = true;
+      } else if (action === 'replace' && !window.confirm('Картридж заменён сегодня? Начать новый отсчёт ресурса?')) return;
     }
     const fillGuard = {edits: new Map(this._filterControlEdits), ids: waterFilterFillIds(action,payload)};
     this._filterBusy = true;

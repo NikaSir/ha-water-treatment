@@ -2,7 +2,7 @@
 
 <img src="custom_components/water_treatment/brand/icon.png" alt="Водоподготовка" width="72" height="72">
 
-Самостоятельная панель **«Водоподготовка»**: фильтры, умягчитель «Ёлка», соль, регенерации и GH. Выделена из [ha-water-accounting](https://github.com/NikaSir/ha-water-accounting) с сохранением расчётов и данных. Подготовленная версия **0.2.0-beta007** (ещё не опубликована). Опубликованная версия — [0.2.0-beta006](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta006). Минимальная заявленная версия Home Assistant — **2026.10.4**.
+Самостоятельная панель **«Водоподготовка»**: фильтры, умягчитель «Ёлка», соль, регенерации и GH. Выделена из [ha-water-accounting](https://github.com/NikaSir/ha-water-accounting) с сохранением расчётов и данных. Подготовленная версия **0.2.0-beta008** (ещё не опубликована). Опубликованная версия — [0.2.0-beta006](https://github.com/NikaSir/ha-water-treatment/releases/tag/0.2.0-beta006). Минимальная заявленная версия Home Assistant — **2026.10.4**.
 
 | Вкладка | Назначение |
 |---|---|
