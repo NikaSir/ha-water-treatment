@@ -9,6 +9,12 @@ PROFILES = {
     'wound': {'volume': 200, 'months': 6},
 }
 CARTRIDGES = ('ferrostop', 'softening', 'postcarbon')
+# BARRIER EXPERT manual, printed p. 11: one regular softening cartridge.
+# The existing automatic six-month cap also follows the current product advice.
+SOFTENING_TABLE = {1: (7, 5, 3), 2: (3.5, 2.5, 1.5), 3: (2, 1.5, 1)}
+SOFTENING_BANDS = (3, 4, 5)
+SOFTENING_LIMIT_MONTHS = 6
+SOFTENING_TABLE_SOURCE = 'https://www.barrier.ru/images/manuals/BARRIER_EXPERT_instruction.pdf'
 
 
 def defaults():
@@ -34,7 +40,36 @@ def softening_months(people, hardness):
     if hardness is None or people not in (1, 2, 3) or not 0 < hardness <= 5:
         return None
     column = 0 if hardness <= 3 else 1 if hardness <= 4 else 2
-    return min(6, {1: (7, 5, 3), 2: (3.5, 2.5, 1.5), 3: (2, 1.5, 1)}[people][column])
+    return min(SOFTENING_LIMIT_MONTHS, SOFTENING_TABLE[people][column])
+
+
+def softening_basis(settings):
+    """Explain saved settings without changing intervals or maintenance records.
+
+    The manual's first band is 'up to 3', with no further low-hardness bands.
+    A lower measurement in that band therefore does not extend the estimate.
+    """
+    people, hardness = settings['people'], settings['hardness']
+    recommended = softening_months(people, hardness)
+    band = table_months = None
+    if hardness is None:
+        reason = 'missing_hardness'
+    elif not 0 < hardness <= 5:
+        reason = 'hardness_out_of_range'
+    elif people not in SOFTENING_TABLE:
+        reason = 'people_out_of_range'
+    else:
+        reason = 'table'
+        column = 0 if hardness <= 3 else 1 if hardness <= 4 else 2
+        band, table_months = SOFTENING_BANDS[column], SOFTENING_TABLE[people][column]
+    return {'mode': 'table' if settings['softening_auto'] else 'manual',
+            'people': people, 'hardness': hardness, 'reason': reason,
+            'band_max': band, 'table_months': table_months,
+            'recommended_months': recommended,
+            'applied_months': settings['cartridges']['softening']['months'],
+            'limit_months': SOFTENING_LIMIT_MONTHS,
+            'capped': table_months is not None and table_months > SOFTENING_LIMIT_MONTHS,
+            'source_url': SOFTENING_TABLE_SOURCE}
 
 
 def deadline(installed, months):

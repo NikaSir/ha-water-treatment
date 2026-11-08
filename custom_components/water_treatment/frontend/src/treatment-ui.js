@@ -44,8 +44,70 @@ function waterInput(id, label, type = 'number', attributes = '') {
   return '<label>' + label + '<input id="' + id + '" type="' + type + '" ' + attributes + '></label>';
 }
 
+function waterDetailMarkup(prefix, fields) {
+  return '<dl class="detail-metrics">' + fields.map(([key, label, wide]) =>
+    '<div class="detail-metric' + (wide ? ' detail-metric-wide' : '') + '">'
+    + '<dt data-detail-label="' + prefix + '-' + key + '">' + label + '</dt>'
+    + '<dd><span data-detail-value="' + prefix + '-' + key + '">Нет данных</span>'
+    + '<small data-detail-note="' + prefix + '-' + key + '"></small></dd></div>').join('') + '</dl>';
+}
+
+function paintWaterDetail(panel, key, value, note = '', label) {
+  panel._setText('[data-detail-value="' + key + '"]', value);
+  panel._setText('[data-detail-note="' + key + '"]', note);
+  if (label) panel._setText('[data-detail-label="' + key + '"]', label);
+}
+
+function waterCompactNumber(value, digits = 2) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? new Intl.NumberFormat('ru-RU', {maximumFractionDigits: digits}).format(value) : null;
+}
+
+function waterRecordedDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? value.split('-').reverse().join('.') : 'Не записана';
+}
+
+function waterGhHistoryMarkup() {
+  return '<section class="gh-history-section" aria-label="Последние измерения GH"><h3>Последние измерения</h3>'
+    + '<p data-gh-empty>Измерений пока нет</p><ol class="gh-history-list" data-gh-history>'
+    + Array.from({length: 10}, (_, index) => '<li class="gh-record" data-gh-row="' + index + '" hidden>'
+      + '<div class="gh-record-heading"><time data-gh-date="' + index + '"></time>'
+      + '<span data-gh-sample="' + index + '"></span></div>'
+      + '<p class="gh-record-point" data-gh-point="' + index + '"></p>'
+      + '<div class="gh-record-values"><strong data-gh-drops="' + index + '"></strong>'
+      + '<span data-gh-dgh="' + index + '"></span><span data-gh-zh="' + index + '"></span></div></li>').join('')
+    + '</ol></section>';
+}
+
+function paintWaterGhHistory(panel, items, emptyText = 'Измерений пока нет') {
+  const points = {mains: 'До «Ёлки» · водопровод', softener: 'После «Ёлки» · вход БАРЬЕР', barrier: 'После БАРЬЕР'};
+  const empty = panel.shadowRoot.querySelector('[data-gh-empty]');
+  if (empty && empty.hidden !== !!items.length) empty.hidden = !!items.length;
+  panel._setText('[data-gh-empty]', emptyText);
+  for (let index = 0; index < 10; index++) {
+    const item = items[index];
+    const row = panel.shadowRoot.querySelector('[data-gh-row="' + index + '"]');
+    if (row && row.hidden !== !item) row.hidden = !item;
+    if (!item) continue;
+    const set = (name, value) => panel._setText('[data-gh-' + name + '="' + index + '"]', value);
+    set('date', waterRecordedDate(item.date));
+    const time = panel.shadowRoot.querySelector('[data-gh-date="' + index + '"]');
+    if (time && time.dateTime !== item.date) time.dateTime = item.date;
+    set('point', points[item.point] || 'Точка не указана');
+    set('sample', item.sample_ml != null ? 'Проба ' + waterCompactNumber(item.sample_ml) + ' мл' : '');
+    set('drops', waterCompactNumber(item.drops, 0) + ' кап.');
+    set('dgh', waterCompactNumber(item.dgh) + ' °dGH');
+    set('zh', '≈ ' + waterCompactNumber(item.zh) + ' °Ж');
+  }
+}
+
 function waterSaltLedgerMarkup() {
-  return '<p data-salt-balance></p><p data-salt-coverage></p>'
+  return '<section class="salt-balance-section"><h3>Учёт запаса</h3>'
+    + waterDetailMarkup('stock', [['known', 'По записанным массам'], ['estimated', 'Оценка по дозам'], ['cycles', 'Записано циклов']])
+    + '<details><summary>Расчёт запаса соли</summary>'
+    + waterDetailMarkup('coverage', [['cycles', 'Полных циклов'], ['volume', 'Номинальный объём'], ['days', 'Сценарный срок']])
+    + '<p data-salt-coverage-note>Для оценки нужен известный начальный запас.</p></details></section>'
     + '<details><summary>Остаток, очистка бака и регенерации</summary>'
     + '<p>События вводятся вручную. Сброс объёма на дисплее не подтверждает успешную регенерацию.</p>'
     + '<div class="filter-form">' + waterInput('salt-event-date', 'Дата события', 'date') + '</div>'
@@ -72,8 +134,11 @@ function waterSaltLedgerMarkup() {
 
 function waterSoftenerMarkup() {
   return '<section class="card filter-settings"><h2>Ёлка — параметры для учёта</h2>'
-    + '<p>Старая WSC-0,5-Rx-(SC) · Runxin F69A3. Профиль хранит сведения, не меняет настройки клапана.</p>'
-    + '<p data-treatment-summary></p><p data-treatment-message role="status" aria-live="polite"></p>'
+    + waterDetailMarkup('profile', [['mode', 'Режим клапана'], ['time', 'Запуск регенерации'],
+      ['volume', 'Объём между циклами'], ['interval', 'Максимальный интервал'],
+      ['resin', 'Объём смолы'], ['stages', 'Длительность стадий']])
+    + '<p data-treatment-codes></p><p>Профиль хранит сведения для учёта. Настройки клапана изменяются на самом оборудовании.</p>'
+    + '<p data-treatment-message role="status" aria-live="polite"></p>'
     + '<button type="button" data-filter-action="treatment_old_profile">Применить предварительный профиль 8 л / 1 кг</button>'
     + '<details><summary>Заданные параметры и допущения</summary><div class="filter-form">'
     + waterInput('treatment-resin', 'Смола, л', 'number', 'min="0.1" max="100" step="0.1"')
@@ -101,9 +166,9 @@ function waterQualityMarkup() {
     + '<label>Точка отбора<select id="gh-point"><option value="softener">После Ёлки / вход БАРЬЕР</option>'
     + '<option value="mains">Водопровод до Ёлки</option><option value="barrier">После БАРЬЕР</option></select></label>'
     + waterInput('gh-drops', 'Капли в пробе 5 мл', 'number', 'min="1" max="100" step="1"')
-    + '<label class="filter-checkbox"><input id="gh-apply" type="checkbox">Применить пробу после Ёлки к расчёту срока БАРЬЕР</label></div>'
+    + '<label class="filter-checkbox"><input id="gh-apply" type="checkbox">Применить пробу после Ёлки к сроку «Смягчения» БАРЬЕР</label></div>'
     + '<button type="button" data-filter-action="treatment_gh">Записать GH-пробу</button>'
-    + '<p data-gh-history>Измерений пока нет</p></section>';
+    + waterGhHistoryMarkup() + '</section>';
 }
 
 function waterTreatmentPayload(root, action) {
@@ -160,22 +225,30 @@ function paintWaterTreatment(panel, fill, guard) {
   const data=panel._filterData;
   if (!data) return;
   const salt=data.settings.salt;const state=data.salt_status;
-  const fmt=n=>panel._formatNumber(n,3);
-  panel._setText('[data-salt-balance]', 'По записанным массам: ' + (state.known_remaining_kg == null ? 'нет полных данных' : fmt(state.known_remaining_kg) + ' кг')
-    + '; оценка по дозам: ' + (state.estimated_remaining_kg == null ? 'не определена' : fmt(state.estimated_remaining_kg) + ' кг')
-    + '; записано циклов: ' + (salt.regenerations || 0));
-  const coverage=[];
-  if (state.full_cycles != null) coverage.push('Номинально: ' + state.full_cycles + ' полных циклов / ' + fmt(state.nominal_m3) + ' м³');
-  if (state.scenario_days != null) coverage.push('сценарная оценка: ' + fmt(state.scenario_days) + ' дн.');
-  if (salt.dose_basis === 'legacy_unverified') coverage.push('Унаследованная доза ' + fmt(salt.dose) + ' кг не проверена. Для старой версии доступен предварительный профиль 1 кг.');
-  panel._setText('[data-salt-coverage]',coverage.join(' · ') + (coverage.length ? ' Оценка не является измерением остатка или гарантией ресурса.' : 'Для оценки нужен известный начальный запас.'));
+  const value = (number, unit, digits = 2) => waterCompactNumber(number, digits) == null
+    ? 'Нет данных' : waterCompactNumber(number, digits) + (unit ? ' ' + unit : '');
+  paintWaterDetail(panel, 'stock-known', state.known_remaining_kg == null ? 'Нет полных данных' : value(state.known_remaining_kg, 'кг'));
+  const doseBasis = {measured: 'доза измерена', assumed: 'доза предварительная', legacy_unverified: 'унаследована, не проверена'};
+  const doseNote = value(salt.dose, 'кг/цикл') + ' · ' + (doseBasis[salt.dose_basis] || 'основание дозы неизвестно');
+  paintWaterDetail(panel, 'stock-estimated', value(state.estimated_remaining_kg, 'кг'), doseNote);
+  paintWaterDetail(panel, 'stock-cycles', value(salt.regenerations, '', 0));
+  paintWaterDetail(panel, 'coverage-cycles', value(state.full_cycles, '', 0));
+  paintWaterDetail(panel, 'coverage-volume', value(state.nominal_m3, 'м³', 3), 'По заданному объёму в клапане');
+  paintWaterDetail(panel, 'coverage-days', state.scenario_days == null ? 'Не рассчитан' : '≈ ' + value(state.scenario_days, 'дн.', 0));
+  panel._setText('[data-salt-coverage-note]', (salt.dose_basis === 'legacy_unverified'
+    ? 'Унаследованная доза соли не проверена. ' : '')
+    + 'Расчёт по дозам и заданному объёму является оценкой. Для него нужен известный начальный запас.');
   const treatment=data.settings.treatment;
   if (!treatment || !data.treatment_status) return;
   const profile=treatment.profile;
-  panel._setText('[data-treatment-summary]', 'Задано по профилю: ' + profile.mode + ', ' + profile.time + ', ' + profile.volume_unit + ', ' + profile.backwash_mode + ', H-' + profile.max_days + ', ' + profile.signal
-    + '; стадии ' + data.treatment_status.stage_minutes + ' мин + переключения. Смола ' + fmt(profile.resin_l) + ' л (' + (profile.resin_basis === 'measured' ? 'измерено' : 'предварительно') + '); объём ' + fmt(profile.cycle_m3) + ' м³ (' + (profile.cycle_basis === 'configured' ? 'проверено в клапане' : 'временно') + ').');
-  const points={mains:'до Ёлки',softener:'после Ёлки / вход БАРЬЕР',barrier:'после БАРЬЕР'};
-  panel._setText('[data-gh-history]',data.treatment_status.latest_gh.map(item=>item.date.split('-').reverse().join('.') + ' · ' + points[item.point] + ': ' + item.drops + ' кап. / ' + item.dgh + ' °dGH / ≈' + panel._formatNumber(item.zh,2) + ' °Ж').join(' • ') || 'Измерений пока нет');
+  paintWaterDetail(panel, 'profile-mode', profile.mode || 'Нет данных');
+  paintWaterDetail(panel, 'profile-time', profile.time || 'Нет данных');
+  paintWaterDetail(panel, 'profile-volume', value(profile.cycle_m3, 'м³', 3), profile.cycle_basis === 'configured' ? 'Проверено в клапане' : 'Временная настройка');
+  paintWaterDetail(panel, 'profile-interval', value(profile.max_days, 'дн.', 0));
+  paintWaterDetail(panel, 'profile-resin', value(profile.resin_l, 'л'), profile.resin_basis === 'measured' ? 'Измерено' : 'Предварительно');
+  paintWaterDetail(panel, 'profile-stages', value(data.treatment_status.stage_minutes, 'мин'), 'Плюс переключения');
+  panel._setText('[data-treatment-codes]', [profile.volume_unit, profile.backwash_mode, profile.signal].filter(Boolean).join(' · '));
+  paintWaterGhHistory(panel, data.treatment_status.latest_gh);
   if (!fill) return;
   const values={'treatment-resin':profile.resin_l,'treatment-resin-basis':profile.resin_basis,'treatment-cycle':profile.cycle_m3,'treatment-cycle-basis':profile.cycle_basis,
     'treatment-max-days':profile.max_days,'treatment-backwash':profile.backwash_min,'treatment-brine':profile.brine_min,'treatment-refill':profile.refill_min,'treatment-rinse':profile.fast_rinse_min,

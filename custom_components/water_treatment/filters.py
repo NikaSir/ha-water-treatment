@@ -14,7 +14,7 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN, ENTITY_MAP
 from .salt_model import migrate_salt, salt_action, salt_status
 from .treatment_model import treatment_defaults, treatment_action, treatment_status
-from .filter_model import CARTRIDGES, defaults, status, update_settings
+from .filter_model import CARTRIDGES, defaults, softening_basis, status, update_settings
 from .migration import assert_no_legacy_writer, load_envelope
 from .journal_storage import JournalStore as Store
 
@@ -71,6 +71,7 @@ class FilterStore:
                               if key != 'source_snapshot'},
                 'salt_status': salt_status(self.data['salt'], today, self.data['treatment']['profile']),
                 'treatment_status': treatment_status(self.data['treatment']),
+                'softening_basis': softening_basis(self.data),
                 'meter': meter, 'today': today.isoformat(),
                 'status': {'main': status(self.data['main'], today, meter),
                            **{key: status(self.data['cartridges'][key], today) for key in CARTRIDGES}}}
