@@ -79,3 +79,28 @@ class SaltTests(unittest.TestCase):
         for action,payload in [('service',{'remaining_kg':None,'added_kg':5}),('service',{'remaining_kg':-1,'added_kg':5}),('regeneration',{'completed':False}),('regeneration',{'completed':True,'result':'invented'}),('remove',{'kg':float('nan')}),('topup',{'kg':True}),('service',{'remaining_kg':0,'added_kg':5,'date':'2027-01-01'})]:
             with self.assertRaises(ValueError):
                 self.m['salt_action'](cfg,action,payload,date(2026,10,27))
+
+class CleanupTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.m=runpy.run_path(str(Path(__file__).resolve().parents[1]/'custom_components/water_treatment/salt_model.py'))
+    def test_cleanup_archives_only_safe_exact_duplicates(self):
+        act = self.m['salt_action']
+        today = date(2026,11,8)
+        cfg = self.m['salt_defaults']()
+        for _ in range(2):
+            cfg = act(cfg, 'topup', {'date':'2026-10-27','kg':5}, today)
+        cfg = act(cfg, 'service', {'date':'2026-10-28','remaining_kg':0,'added_kg':5}, today)
+        for _ in range(2):
+            cfg = act(cfg, 'topup', {'date':'2026-11-01','kg':5}, today)
+        for _ in range(2):
+            cfg = act(cfg, 'check', {'level':'enough'}, today)
+        original = cfg['history'][:]
+        cleaned = act(cfg, 'cleanup', {}, today)
+        self.assertEqual(len(cleaned['history']), len(original)-2)
+        self.assertEqual(cleaned['history_archive'][-1]['history'], original)
+        self.assertEqual(cleaned['estimated_kg'], cfg['estimated_kg'])
+        self.assertEqual(cleaned['known_kg'], cfg['known_kg'])
+        self.assertEqual(sum(e['action']=='topup' and e['date']=='2026-11-01' for e in cleaned['history']), 2)
+        again = act(cleaned, 'cleanup', {}, today)
+        self.assertEqual(again, cleaned)

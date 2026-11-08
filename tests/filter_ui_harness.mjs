@@ -452,3 +452,40 @@ test('a failed read replaces stale save confirmations on the softener and qualit
   assert.match(p.shadowRoot.querySelector('[data-salt-message]').textContent,/offline/);
   assert.match(p.shadowRoot.querySelector('[data-gh-message]').textContent,/offline/);
 });
+
+test('structured errors are readable and stale load errors clear after recovery',async()=>{
+  const p=fixture();
+  for(const key of ['salt','treatment','gh']) p.shadowRoot.nodes.set(`[data-${key}-message]`,new NodeMock());
+  p._hass={callWS:async()=>{throw {error:{code:'not_loaded',message:'Интеграция не загружена'}};}};
+  await p._loadFilters();
+  assert.match(p.shadowRoot.querySelector('[data-salt-message]').textContent,/Интеграция не загружена/);
+  p._hass={callWS:async()=>({revision:4})};
+  await p._loadFilters();
+  for(const key of ['salt','treatment','gh']) assert.equal(p.shadowRoot.querySelector(`[data-${key}-message]`).textContent,'');
+});
+
+test('a lost write response reuses the operation id on explicit retry',async()=>{
+  const p=fixture(); const kg=new NodeMock();kg.value='5';p.shadowRoot.nodes.set('#salt-kg',kg);
+  p.shadowRoot.nodes.set('[data-salt-message]',new NodeMock());
+  const sent=[];p._hass={callWS:async msg=>{sent.push(msg);if(sent.length===1)throw {code:'disconnected'};return {revision:4};}};
+  const button={dataset:{filterAction:'salt_topup'},disabled:false};
+  await p._filterAction(button);await p._filterAction(button);
+  assert.ok(sent[0].operation_id);
+  assert.equal(sent[0].operation_id,sent[1].operation_id);
+});
+
+test('reopening a panel after a lost response retains the pending operation',async()=>{
+  const storage=new Map();
+  context.sessionStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
+  try {
+    const sent=[];
+    for(let attempt=0;attempt<2;attempt++) {
+      const p=fixture();const kg=new NodeMock();kg.value='5';p.shadowRoot.nodes.set('#salt-kg',kg);
+      p.shadowRoot.nodes.set('[data-salt-message]',new NodeMock());
+      p._hass={callWS:async msg=>{sent.push(msg);if(attempt===0)throw {code:'disconnected'};return {revision:4};}};
+      await p._filterAction({dataset:{filterAction:'salt_topup'},disabled:false});
+    }
+    assert.equal(sent[0].operation_id,sent[1].operation_id);
+    assert.equal(storage.size,0);
+  } finally { delete context.sessionStorage; }
+});

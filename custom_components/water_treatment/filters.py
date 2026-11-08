@@ -75,9 +75,17 @@ class FilterStore:
                 'status': {'main': status(self.data['main'], today, meter),
                            **{key: status(self.data['cartridges'][key], today) for key in CARTRIDGES}}}
 
-    async def mutate(self, action, payload, revision):
+    async def mutate(self, action, payload, revision, operation_id=None):
         async with self.lock:
             assert_no_legacy_writer(self.hass)
+            if operation_id is not None:
+                if not isinstance(operation_id, str) or not 1 <= len(operation_id) <= 128:
+                    raise ValueError('Неверный идентификатор операции')
+                previous = self.envelope.get('operations', {}).get(operation_id)
+                if previous is not None:
+                    if previous != {'action': action, 'payload': payload}:
+                        raise ValueError('Идентификатор операции уже использован для другой записи')
+                    return self.snapshot()
             if revision != self.revision:
                 raise ValueError('Настройки изменились на другом устройстве. Обновите вкладку.')
             data = deepcopy(self.data)
@@ -122,6 +130,9 @@ class FilterStore:
             revision_next = self.revision + 1
             envelope = deepcopy(self.envelope)
             envelope.update(settings=data, revision=revision_next)
+            if operation_id is not None:
+                envelope.setdefault('operations', {})[operation_id] = {
+                    'action': action, 'payload': deepcopy(payload)}
             await self.store.async_save(envelope)
             self.envelope = envelope
             self.data, self.revision = data, revision_next
@@ -130,10 +141,11 @@ class FilterStore:
 
 @websocket_api.websocket_command({vol.Required('type'): f'{DOMAIN}/filters',
                                  vol.Optional('action', default='get'): vol.In(('get', 'settings', 'replace', 'record',
-                                     'salt_settings', 'salt_topup', 'salt_check', 'salt_service', 'salt_remove', 'salt_regeneration',
+                                     'salt_cleanup', 'salt_settings', 'salt_topup', 'salt_check', 'salt_service', 'salt_remove', 'salt_regeneration',
                                      'treatment_settings', 'treatment_gh', 'treatment_old_profile')),
                                  vol.Optional('payload', default=dict): dict,
-                                 vol.Optional('revision'): int})
+                                 vol.Optional('revision'): int,
+                                 vol.Optional('operation_id'): str})
 @websocket_api.async_response
 async def filters_command(hass, connection, msg):
     manager = hass.data.get(DOMAIN, {}).get('filters')
@@ -150,7 +162,7 @@ async def filters_command(hass, connection, msg):
         connection.send_error(msg['id'], 'unauthorized', 'Изменять фильтры может только администратор HA')
         return
     try:
-        result = await manager.mutate(msg['action'], msg['payload'], msg.get('revision'))
+        result = await manager.mutate(msg['action'], msg['payload'], msg.get('revision'), msg.get('operation_id'))
     except (ValueError, TypeError, HomeAssistantError, OSError) as err:
         connection.send_error(msg['id'], 'invalid_settings', str(err))
         return
