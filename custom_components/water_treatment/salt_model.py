@@ -2,6 +2,7 @@
 from copy import deepcopy
 from datetime import date, timedelta
 from math import floor, isfinite
+import json
 
 
 def salt_defaults():
@@ -63,6 +64,26 @@ def salt_action(current, action, payload, today):
     if action in ('topup', 'service', 'remove', 'regeneration'):
         if cfg['last_ledger_date'] and stamp < cfg['last_ledger_date']:
             raise ValueError('Событие раньше последней записи запаса; уточните текущий остаток')
+    if action == 'cleanup':
+        # Only remove exact checks and top-ups superseded by an explicit stock reset.
+        # Equal top-ups after that reset may be real and must remain untouched.
+        history = cfg['history']
+        reset = max((i for i, item in enumerate(history) if item.get('action') == 'service'), default=-1)
+        seen = set()
+        kept = []
+        for i, item in enumerate(history):
+            eligible = item.get('action') == 'check' or (item.get('action') == 'topup' and i < reset)
+            signature = json.dumps(item, sort_keys=True, ensure_ascii=False)
+            if eligible and signature in seen:
+                continue
+            if eligible:
+                seen.add(signature)
+            kept.append(item)
+        if len(kept) != len(history):
+            cfg.setdefault('history_archive', []).append({'date': stamp, 'history': deepcopy(history),
+                'reason': 'exact_duplicates_before_stock_reset_or_checks'})
+            cfg['history'] = kept
+        return cfg
     if action == 'settings':
         cfg['dose'] = number(payload.get('dose', cfg['dose']), 20)
         basis = payload.get('dose_basis', cfg['dose_basis'])

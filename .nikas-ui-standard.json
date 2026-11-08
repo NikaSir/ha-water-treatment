@@ -22,7 +22,7 @@
     "custom_components/water_treatment/frontend/src/styles.css",
     "scripts/build.mjs"
   ],
-  "ui_version": "0.2.0-beta004",
+  "ui_version": "0.2.0-beta005",
   "web_component": "nikas-water-treatment-panel",
   "bundle_contract": {
     "autonomous": true,

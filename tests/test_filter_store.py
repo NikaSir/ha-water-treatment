@@ -189,3 +189,38 @@ class FilterStoreTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(errors),6)
         self.assertTrue(all(item[1]=='unauthorized' for item in errors))
         self.assertEqual(self.manager.revision,0)
+
+class RetryTests(unittest.IsolatedAsyncioTestCase):
+    setUp = FilterStoreTests.setUp
+    async def test_retry_after_reload_does_not_append_again(self):
+        await self.manager.load()
+        await self.manager.mutate('salt_topup', {'kg': 5}, 0, operation_id='topup-1')
+        reloaded = self.adapter.FilterStore(self.hass)
+        await reloaded.load()
+        await reloaded.mutate('salt_topup', {'kg': 5}, 0, operation_id='topup-1')
+        self.assertEqual(len(reloaded.data['salt']['history']), 1)
+        self.assertEqual(reloaded.revision, 1)
+        with self.assertRaises(ValueError):
+            await reloaded.mutate('salt_topup', {'kg': 6}, 1, operation_id='topup-1')
+
+    async def test_new_operation_can_record_same_mass(self):
+        await self.manager.load()
+        await self.manager.mutate('salt_topup', {'kg': 5}, 0, operation_id='a')
+        await self.manager.mutate('salt_topup', {'kg': 5}, 1, operation_id='b')
+        self.assertEqual(len(self.manager.data['salt']['history']), 2)
+
+    async def test_failed_persistence_does_not_consume_operation_id(self):
+        await self.manager.load()
+        self.store.fail = True
+        with self.assertRaises(OSError):
+            await self.manager.mutate('salt_topup', {'kg':5}, 0, operation_id='retry-disk')
+        self.store.fail = False
+        await self.manager.mutate('salt_topup', {'kg':5}, 0, operation_id='retry-disk')
+        self.assertEqual(len(self.manager.data['salt']['history']), 1)
+
+    async def test_concurrent_retries_commit_once(self):
+        await self.manager.load()
+        await asyncio.gather(*(self.manager.mutate('salt_topup', {'kg':5}, 0,
+                              operation_id='concurrent') for _ in range(2)))
+        self.assertEqual(len(self.manager.data['salt']['history']), 1)
+        self.assertEqual(self.manager.revision, 1)

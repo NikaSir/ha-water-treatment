@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta004",
+  uiVersion: "0.2.0-beta005",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -69,10 +69,24 @@ function saveStoredChoice(key, value) {
 }
 
 
+function waterErrorText(error) {
+  if (typeof error === 'string') return error;
+  const message = error?.message || error?.error?.message;
+  if (typeof message === 'string' && message) return message;
+  const code = error?.code || error?.error?.code;
+  return typeof code === 'string' ? code : 'Неизвестная ошибка связи с Home Assistant';
+}
+
+function waterOperationId() {
+  return globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + '-' + Math.random().toString(36).slice(2) + '-' + Math.random().toString(36).slice(2);
+}
+
 class NikaSWaterTreatmentPanel extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this._pendingWrites = new Map();
+    this._loadErrorMessages = new Map();
     this._filterData = null;
     this._filterLoadError = false;
     this._filterDisconnected = false;
@@ -442,6 +456,11 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     try {
       const data = await this._withTimeout(this._hass.callWS({ type: "water_treatment/filters" }), 15000);
       this._filterLoadError = false;
+      for (const [selector, message] of this._loadErrorMessages) {
+        const node = this.shadowRoot.querySelector(selector);
+        if (node?.textContent === message) node.textContent = '';
+      }
+      this._loadErrorMessages.clear();
       this._filterData = data;
       this._paintFilters(true, guard);
       this._setText("[data-filter-message]", "");
@@ -450,9 +469,11 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._filterData = null;
       this._filterLoadError = true;
       paintWaterOverview(this);
-      this._setText("[data-filter-message]", "Не удалось получить данные: " + (error.message || String(error)));
+      this._setText("[data-filter-message]", "Не удалось получить данные: " + waterErrorText(error));
       for (const selector of ['[data-filter-settings-message]', '[data-salt-message]', '[data-treatment-message]', '[data-gh-message]']) {
-        this._setText(selector, "Не удалось получить данные: " + (error.message || String(error)));
+        const message = "Не удалось получить данные: " + waterErrorText(error);
+        this._loadErrorMessages.set(selector, message);
+        this._setText(selector, message);
       }
       this.shadowRoot.querySelectorAll("[data-filter-status]").forEach(node => { node.textContent = "Нет данных"; });
       this.shadowRoot.querySelectorAll("[data-filter-detail]").forEach(node => { node.textContent = ""; });
@@ -482,6 +503,8 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + '<label>Основание дозы<select id="salt-dose-basis"><option value="assumed">Предварительная оценка</option><option value="measured">Измерена при калибровке</option><option value="legacy_unverified">Унаследована, не проверена</option></select></label></div>'
       + '<button type="button" data-filter-action="salt_settings">Сохранить настройки соли</button>'
       + '<p>Настройки меняют дозу и напоминание; досыпку записывает отдельная кнопка выше. Для старой версии 1 кг/цикл предварителен. Современные 1,5 кг автоматически не применяются. Интервал проверки по умолчанию 6 дней.</p>'
+      + '<button type="button" data-filter-action="salt_cleanup">Убрать точные повторы</button>'
+      + '<p>Очистка объединяет одинаковые проверки и досыпки до последнего обслуживания бака. Исходный журнал сохраняется в архиве.</p>'
       + '<p data-salt-history></p></details></section>';
   }
 
@@ -604,7 +627,10 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     const saltDraftRevision = this._saltDraftRevision;
     const value = id => root.querySelector('#' + id).value;
     let payload;
-    if (action.startsWith('treatment_') || ['salt_service','salt_remove','salt_regeneration'].includes(action)) {
+    if (action === 'salt_cleanup') {
+      if (!window.confirm('Убрать точные повторы проверок и досыпок до последнего обслуживания? Исходный журнал будет сохранён в архиве; текущий запас не изменится.')) return;
+      payload = {};
+    } else if (action.startsWith('treatment_') || ['salt_service','salt_remove','salt_regeneration'].includes(action)) {
       try { payload = waterTreatmentPayload(root, action); }
       catch (error) { feedback('Не сохранено: ' + error.message); return; }
       if (payload === null) return;
@@ -650,8 +676,20 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       if (!this._filterData) throw new Error('Обновите данные фильтров и повторите запись');
       const revision = action === 'salt_topup' || editingRevision == null
         ? this._filterData.revision : editingRevision;
+      // Keep the same id after an ambiguous failure, including a panel reload.
+      const pendingKey = 'water-treatment:pending:' + (this._hass.user?.id || 'current') + ':' + action;
+      const payloadFingerprint = JSON.stringify(payload);
+      let pending = this._pendingWrites.get(action);
+      if (!pending) {
+        try { pending = JSON.parse(sessionStorage.getItem(pendingKey)); } catch (_error) { /* Optional storage. */ }
+      }
+      if (!pending || pending.fingerprint !== payloadFingerprint) pending = {fingerprint: payloadFingerprint, id: waterOperationId()};
+      this._pendingWrites.set(action, pending);
+      try { sessionStorage.setItem(pendingKey, JSON.stringify(pending)); } catch (_error) { /* Optional storage. */ }
       this._filterData = await this._withTimeout(this._hass.callWS({ type: 'water_treatment/filters', action,
-        payload, revision }), 15000);
+        payload, revision, operation_id: pending.id }), 15000);
+      this._pendingWrites.delete(action);
+      try { sessionStorage.removeItem(pendingKey); } catch (_error) { /* Optional storage. */ }
       this._filterLoadError = false;
       this._paintFilters(true, fillGuard);
       for (const id of fillGuard.ids) {
@@ -674,7 +712,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
         ? 'Сохранено: досыпано ' + this._formatNumber(payload.kg, 1) + ' кг. Дата и масса показаны выше.'
         : newerCartridgeDraft ? 'Запись сохранена. Новые изменения ещё не сохранены.' : 'Сохранено');
     } catch (error) {
-      feedback('Не сохранено: ' + (error.message || String(error)));
+      feedback('Не сохранено: ' + waterErrorText(error));
     } finally {
       this._filterBusy = false;
       button.disabled = false;
