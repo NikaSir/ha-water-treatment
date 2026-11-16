@@ -49,7 +49,7 @@ Every active route has exactly one owner and every installed main panel must hav
 
 A parent must be an absolute same-origin path, not an external URL, protocol-relative URL, script URL or registry identifier. Parent paths do not contain queries or fragments. Self-parent references and cycles are invalid. Unknown parents must be rejected by the registry before publication.
 
-The geometrically centered title plaque is one semantic button with focus and pressed states, at least 44px high. Its second line remains exactly `UI vX.Y.Z`. Click and keyboard activation perform the same transition. The left rail owns the Home Assistant menu; the right rail owns refresh. No separate arrow or Back control is added.
+The geometrically centered title plaque is one semantic button with focus and pressed states, at least 44px high. Its second line shows the complete UI and integration versions as `UI vX.Y.Z / A.B.C`. Click and keyboard activation perform the same transition. The left rail owns the Home Assistant menu; the right rail owns refresh. No separate arrow or Back control is added.
 
 Navigation uses `history.pushState()` and a `location-changed` event. `history.back()`, forced reload and `location.href` assignment are prohibited. Telemetry, refresh, tab and peer changes must not replace the persistent Header or its handler. Only an actual hierarchical page change changes its parent destination.
 

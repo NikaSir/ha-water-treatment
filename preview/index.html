@@ -21,6 +21,7 @@
   const panel = document.createElement('nikas-water-treatment-panel');
   panel.hass = {
     locale:{language:'ru'}, user:{is_admin:true}, connection:{connected:true}, states:{},
+    themes:{darkMode:document.documentElement.dataset.theme === 'dark'},
     callWS:async message => {
       if (message.action) throw new Error('Это предпросмотр, запись недоступна');
       return structuredClone(snapshot);

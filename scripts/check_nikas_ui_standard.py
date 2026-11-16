@@ -98,7 +98,7 @@ def main() -> None:
         "Center title plaque — open the immediate parent",
         "history.pushState()",
         "history.back()",
-        "exact form `UI vX.Y.Z`",
+        "exact form `UI vX.Y.Z / A.B.C`",
         "focus state and pressed response",
         "Data truth and command safety",
         "Production bundle and version coherence",

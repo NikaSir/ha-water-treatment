@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant
 from .const import (
     DOMAIN,
     ENTITY_MAP,
+    INTEGRATION_VERSION,
     UI_STANDARD_VERSION,
     UI_VERSION,
 )
@@ -38,6 +39,7 @@ PANEL_METADATA = {
     "owner": DOMAIN,
     "preferred_view": "overview",
     "ui_version": UI_VERSION,
+    "integration_version": INTEGRATION_VERSION,
     "template_version": UI_STANDARD_VERSION,
     "frontend_bundle": PANEL_BUNDLE,
     "read_only": False,

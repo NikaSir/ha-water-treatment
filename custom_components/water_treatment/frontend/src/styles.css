@@ -53,12 +53,6 @@ button:active {
     var(--wa-bg);
 }
 
-.app-header {
-  box-shadow: 0 7px 24px rgba(19, 43, 69, 0.06);
-}
-
-.header-action,
-.header-title,
 .tabbar button,
 .period-selector button,
 .pressure-card,
@@ -69,43 +63,16 @@ button:active {
   cursor: pointer;
 }
 
-.header-action {
-  justify-self: center;
-}
-
-.header-action ha-icon {
-  --mdc-icon-size: 25px;
-}
-
 .header-action.busy ha-icon {
-  animation: wa-spin 0.8s linear infinite;
+  animation: wa-spin 0.9s linear infinite;
 }
 
-.header-title {
-  color: inherit;
+.header-action.success ha-icon {
+  color: #43a047;
 }
 
-.header-title:active {
-  border-color: color-mix(in srgb, var(--wa-blue) 42%, var(--wa-divider));
-  background: color-mix(in srgb, var(--wa-blue) 13%, var(--wa-card));
-  box-shadow: 0 2px 7px rgba(23, 45, 76, 0.05);
-}
-
-.header-title strong {
-  overflow: hidden;
-  font-size: clamp(16px, 4.6vw, 23px);
-  font-weight: 800;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-title small {
-  color: var(--wa-muted);
-  font-size: clamp(11px, 3.2vw, 14px);
-  font-weight: 560;
-  letter-spacing: 0.01em;
-  line-height: 1.2;
+.header-action.error ha-icon {
+  color: #e53935;
 }
 
 .canvas-viewport.zoomed {
@@ -1054,7 +1021,11 @@ h2 {
 
   .header-action.busy ha-icon {
     animation: none !important;
-    opacity: 0.62;
+  }
+
+  .header-action.busy {
+    outline: 1px dashed currentColor;
+    outline-offset: -5px;
   }
 }
 
