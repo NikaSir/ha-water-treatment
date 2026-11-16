@@ -1,7 +1,7 @@
 /* NikaS Water Treatment — standalone manual-maintenance panel. */
 const TREATMENT_APP = Object.freeze({
   title: "Водоподготовка",
-  uiVersion: "0.2.0-beta007",
+  uiVersion: "0.2.0-beta009",
   preferredView: "overview",
   safeReturnRoute: "/home/overview",
   tabs: [
@@ -108,7 +108,6 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     this._refreshToken = 0;
     this._refreshDelayTimer = null;
     this._refreshResultTimer = null;
-    this._toastTimer = null;
     this._removeScrollBoundaryGuard = null;
     this._hold = null;
     this._holdFiredUntil = 0;
@@ -156,12 +155,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       window.clearTimeout(this._refreshResultTimer);
       this._refreshResultTimer = null;
     }
-    if (this._toastTimer !== null) {
-      window.clearTimeout(this._toastTimer);
-      this._toastTimer = null;
-    }
-    const previousToast = this.shadowRoot.querySelector(".panel-toast");
-    if (previousToast) previousToast.classList.remove("visible");
+    this._setRefreshVisual("idle");
     if (this._removeScrollBoundaryGuard) {
       this._removeScrollBoundaryGuard();
       this._removeScrollBoundaryGuard = null;
@@ -174,11 +168,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     const tabs = Array.isArray(config.tabs) && config.tabs.length
       ? config.tabs.slice(0, 5)
       : TREATMENT_APP.tabs;
+    const installedVersion = config.integration_version;
+    const integrationVersion = typeof installedVersion === "string" && /^\d+\.\d+\.\d+(?:-beta\d{3})?$/.test(installedVersion)
+      ? installedVersion
+      : "—";
     return {
       title: config.title || TREATMENT_APP.title,
-      uiVersion: /^\d+\.\d+\.\d+$/.test(String(config.ui_version || ""))
-        ? String(config.ui_version)
-        : TREATMENT_APP.uiVersion,
+      versionCaption: `UI v${TREATMENT_APP.uiVersion} / ${integrationVersion}`,
       tabs: tabs,
       entities: Object.assign({}, TREATMENT_APP.entities, config.entities || {}),
     };
@@ -192,19 +188,20 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       + '<div class="app-shell nikas-shell">'
       + '<header class="app-header nikas-shell__header">'
       + '<button type="button" class="header-action nikas-shell__side-action" id="menu" aria-label="Меню Home Assistant">'
-      + '<ha-icon icon="mdi:menu"></ha-icon></button>'
-      + '<button type="button" class="header-title nikas-shell__title" id="return-source" aria-label="Вернуться на главную панель">'
+      + '<ha-icon icon="mdi:menu" aria-hidden="true"></ha-icon></button>'
+      + '<button type="button" class="header-title nikas-shell__title" id="return-source" aria-label="Вернуться на главную панель" aria-describedby="header-versions">'
       + '<strong>' + escapeHtml(config.title) + '</strong>'
-      + '<small>UI v' + escapeHtml(config.uiVersion) + '</small></button>'
-      + '<button type="button" class="header-action nikas-shell__side-action nikas-shell__side-action--right" id="refresh" aria-label="Обновить">'
-      + '<ha-icon icon="mdi:refresh"></ha-icon></button>'
+      + '<small id="header-versions">' + escapeHtml(config.versionCaption) + '</small></button>'
+      + '<button type="button" class="header-action nikas-shell__side-action nikas-shell__side-action--right nikas-shell__side-action--refresh" id="refresh" aria-label="Обновить" aria-busy="false">'
+      + '<ha-icon icon="mdi:refresh" aria-hidden="true"></ha-icon></button>'
       + '</header>'
       + '<main class="canvas-viewport nikas-shell__viewport" aria-label="Рабочая область панели">'
       + '<div class="work-canvas nikas-shell__canvas"><div class="work-content nikas-shell__content"></div></div></main>'
       + '<nav class="tabbar nikas-shell__tabs" aria-label="Разделы"></nav>'
       + '<div class="scale-status" role="status" aria-live="polite">Масштаб 100%</div>'
-      + '<div class="panel-toast" role="status" aria-live="polite"></div>'
+      + '<div class="panel-toast" role="status" aria-live="polite" aria-atomic="true"></div>'
       + '</div>';
+    this._syncRefreshTheme();
     this._removeScrollBoundaryGuard = createNikasShellScrollBoundaryGuard({
       host: this,
       viewport: this.shadowRoot.querySelector(".canvas-viewport"),
@@ -321,7 +318,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   }
 
   _viewMarkup(view) {
-    if (view === "overview") return waterOverviewMarkup(this._config().uiVersion);
+    if (view === "overview") return waterOverviewMarkup(TREATMENT_APP.uiVersion);
     if (view === "softener") return this._saltMarkup() + waterSoftenerMarkup();
     if (view === "quality") return waterQualityMarkup();
     if (view === "settings") return this._settingsMarkup();
@@ -439,7 +436,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
 
   _loadFilters(fill) {
     if (this._filterLoadPromise) return this._filterLoadPromise;
-    if (this._filterBusy || !this._hass || typeof this._hass.callWS !== "function") return Promise.resolve();
+    if (this._filterBusy || !this._hass || typeof this._hass.callWS !== "function") return Promise.resolve(false);
     this._filterLoadPromise = this._readFilters(fill).finally(() => {
       this._filterLoadPromise = null;
       this._scheduleFiltersRefresh();
@@ -459,6 +456,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     const guard = {edits: new Map(this._filterControlEdits), ids: null, preserveDrafts: true};
     try {
       const data = await this._withTimeout(this._hass.callWS({ type: "water_treatment/filters" }), 15000);
+      if (!data || typeof data !== "object") throw new Error("Некорректный снимок водоподготовки");
       this._filterLoadError = false;
       for (const [selector, message] of this._loadErrorMessages) {
         const node = this.shadowRoot.querySelector(selector);
@@ -469,6 +467,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._paintFilters(true, guard);
       this._setText("[data-filter-message]", "");
       this._setText("[data-filter-settings-message]", "Данные водоподготовки актуальны");
+      return true;
     } catch (error) {
       this._filterData = null;
       this._filterLoadError = true;
@@ -489,6 +488,7 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       this._setText('[data-treatment-codes]', '');
       paintWaterGhHistory(this, [], 'Нет данных');
       paintWaterSofteningBasis(this);
+      return false;
     }
   }
 
@@ -758,7 +758,8 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     if (!this._shellMounted) return;
     const config = this._config();
     this._setText(".header-title strong", config.title);
-    this._setText(".header-title small", "UI v" + config.uiVersion);
+    this._setText("#header-versions", config.versionCaption);
+    this._syncRefreshTheme();
     paintWaterOverview(this);
     if (!this._filterData && !this._filterLoadPromise && !this._filterBusy) this._loadFilters();
     window.NikasPanelZoom && window.NikasPanelZoom.attach
@@ -795,24 +796,34 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     });
   }
 
+  _syncRefreshTheme() {
+    const button = this.shadowRoot.querySelector("#refresh");
+    const darkMode = this._hass?.themes?.darkMode ?? window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const colorMode = darkMode ? "dark" : "light";
+    if (button.dataset.nikasColorMode !== colorMode) button.dataset.nikasColorMode = colorMode;
+  }
+
   _setRefreshVisual(state) {
     const button = this.shadowRoot.querySelector("#refresh");
     if (!button) return;
     const icon = button.querySelector("ha-icon");
-    const details = {
-      idle: ["mdi:refresh", "Обновить", "var(--primary-color, #03a9d9)"],
-      busy: ["mdi:refresh", "Обновление данных", "var(--primary-color, #03a9d9)"],
-      success: ["mdi:check", "Данные обновлены", "#43a047"],
-      error: ["mdi:alert-circle-outline", "Ошибка обновления", "#e53935"],
-    }[state] || ["mdi:refresh", "Обновить", "var(--primary-color, #03a9d9)"];
+    const [glyph, label] = {
+      idle: ["mdi:refresh", "Обновить"],
+      busy: ["mdi:refresh", "Обновление данных"],
+      success: ["mdi:check", "Запрос обновления выполнен"],
+      error: ["mdi:alert-circle-outline", "Не удалось обновить данные"],
+    }[state];
     button.classList.toggle("busy", state === "busy");
     button.classList.toggle("success", state === "success");
     button.classList.toggle("error", state === "error");
     button.disabled = state === "busy";
-    button.setAttribute("aria-label", details[1]);
+    button.setAttribute("aria-label", label);
     button.setAttribute("aria-busy", String(state === "busy"));
-    button.style.color = details[2];
-    if (icon) icon.setAttribute("icon", details[0]);
+    if (icon.getAttribute("icon") !== glyph) icon.setAttribute("icon", glyph);
+    const toast = this.shadowRoot.querySelector(".panel-toast");
+    const announcement = state === "success" || state === "error" ? label : "";
+    if (toast.textContent !== announcement) toast.textContent = announcement;
+    toast.classList.toggle("visible", state === "error");
   }
 
   _delay(milliseconds) {
@@ -830,17 +841,11 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
   }
 
   async _refresh() {
-    if (this._refreshing) return false;
+    if (this._refreshing || !this.isConnected) return false;
     if (this._refreshResultTimer !== null) {
       window.clearTimeout(this._refreshResultTimer);
       this._refreshResultTimer = null;
     }
-    if (this._toastTimer !== null) {
-      window.clearTimeout(this._toastTimer);
-      this._toastTimer = null;
-    }
-    const previousToast = this.shadowRoot.querySelector(".panel-toast");
-    if (previousToast) previousToast.classList.remove("visible");
     const token = ++this._refreshToken;
     this._refreshing = true;
     this._setRefreshVisual("busy");
@@ -853,14 +858,13 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
       if (!entities.length || !this._hass || typeof this._hass.callService !== "function") {
         throw new Error("Home Assistant refresh service unavailable");
       }
-      await this._hass.callService("homeassistant", "update_entity", { entity_id: entities });
-      if (this._filterBusy) throw new Error("Дождитесь завершения записи");
-      await this._loadFilters();
-      if (!this._filterData) throw new Error("Не удалось получить журнал водоподготовки");
-      success = true;
+      const result = await this._hass.callService("homeassistant", "update_entity", { entity_id: entities });
+      if (token !== this._refreshToken) return false;
+      if (result !== false) success = await this._loadFilters();
     } catch (_error) {
       success = false;
     }
+    if (token !== this._refreshToken) return false;
     const elapsed = (typeof performance !== "undefined" && performance.now
       ? performance.now()
       : Date.now()) - startedAt;
@@ -868,8 +872,6 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     if (token !== this._refreshToken || !this.isConnected) return success;
     this._refreshing = false;
     this._setRefreshVisual(success ? "success" : "error");
-    if (!success) this._showToast("Обновить данные не удалось");
-    this._queuePatch();
     this._refreshResultTimer = window.setTimeout(() => {
       if (token !== this._refreshToken) return;
       this._refreshResultTimer = null;
@@ -878,17 +880,6 @@ class NikaSWaterTreatmentPanel extends HTMLElement {
     return success;
   }
 
-  _showToast(message) {
-    const toast = this.shadowRoot.querySelector(".panel-toast");
-    if (!toast) return;
-    if (this._toastTimer !== null) window.clearTimeout(this._toastTimer);
-    toast.textContent = message;
-    toast.classList.add("visible");
-    this._toastTimer = window.setTimeout(() => {
-      this._toastTimer = null;
-      toast.classList.remove("visible");
-    }, 1400);
-  }
 }
 
 if (!customElements.get("nikas-water-treatment-panel")) {

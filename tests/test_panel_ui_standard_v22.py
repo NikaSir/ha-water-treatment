@@ -36,6 +36,8 @@ class PanelUiStandardV22Tests(unittest.TestCase):
             hashlib.sha256((ROOT / shell["path"]).read_bytes()).hexdigest(),
             shell["sha256"],
         )
+        refresh = self.profile["refresh_action_feedback"]
+        self.assertEqual(hashlib.sha256((ROOT / refresh["path"]).read_bytes()).hexdigest(), refresh["sha256"])
         self.assertIn(f"// BEGIN {shell['path']}", self.bundle)
 
     def test_production_uses_host_bound_shell_geometry(self) -> None:
@@ -75,9 +77,7 @@ class PanelUiStandardV22Tests(unittest.TestCase):
         for marker in (
             'state === "busy"',
             '"mdi:check"',
-            '"#43a047"',
             '"mdi:alert-circle-outline"',
-            '"#e53935"',
             "elapsed < 900",
             "}, 1400)",
             "this._refreshResultTimer",
@@ -87,6 +87,8 @@ class PanelUiStandardV22Tests(unittest.TestCase):
             self.assertIn(marker, self.core)
         self.assertIn("@media (prefers-reduced-motion: reduce)", self.styles)
         self.assertIn(".header-action.busy ha-icon", self.styles)
+        self.assertIn("#43a047", self.styles)
+        self.assertIn("#e53935", self.styles)
 
     def test_route_collision_and_unload_respect_ownership(self) -> None:
         self.assertIn('PANEL_OWNED = "panel_owned"', self.registration)

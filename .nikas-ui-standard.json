@@ -2,9 +2,9 @@
   "version": "2.2",
   "navigation_contract_version": "1.3",
   "standard_path": "docs/NIKAS_SPECIALIZED_PANEL_UI_STANDARD.md",
-  "standard_sha256": "e150c4ce087635c0cbc25031a6ce1b8489ba0902da3745335af88457484963dc",
+  "standard_sha256": "39691a1e8ad5b98a961d518ab7b38761f3b04e7f7eb032dc19e3c68b4f249083",
   "navigation_contract_path": "docs/NIKAS_PANEL_NAVIGATION_CONTRACT.md",
-  "navigation_contract_sha256": "04c81cb498de3bd9ac35b7e70ed8a90fa4376ed3a31bcedb1fe5cc3cb53e05a6",
+  "navigation_contract_sha256": "26269e700cffa7cc1b0a2f93ff6314ed3d366f988460168c312324511f282423",
   "role": "specialized",
   "artifact_kind": "production",
   "runtime_files": [
@@ -23,7 +23,7 @@
     "custom_components/water_treatment/frontend/src/styles.css",
     "scripts/build.mjs"
   ],
-  "ui_version": "0.2.0-beta007",
+  "ui_version": "0.2.0-beta009",
   "web_component": "nikas-water-treatment-panel",
   "bundle_contract": {
     "autonomous": true,
@@ -43,20 +43,25 @@
   },
   "header_return": {
     "button_marker": "id=\"return-source\"",
-    "version_marker": "'<small>UI v' + escapeHtml(config.uiVersion) + '</small>",
+    "version_marker": "UI v${TREATMENT_APP.uiVersion} / ${integrationVersion}",
     "focus_marker": ".nikas-shell__title:focus-visible",
     "pressed_marker": ".nikas-shell__title:active"
   },
   "title_plaque_reference": {
-    "implementation": "S8 OMNI",
-    "implementation_source": "NikaSir/ha-s8-omni",
+    "implementation": "NikaS Shell v2.1, variant B",
+    "implementation_source": "NikaSir/ha-contract-generated-ui",
     "width": "min(360px,100%)",
     "height_px": 52,
     "padding_px": "5 14",
     "radius_px": 16,
-    "primary_background_mix_percent": 5,
-    "primary_border_mix_percent": 24,
-    "shadow": "0 5px 16px rgba(23,45,76,.06)"
+    "primary_background_mix_percent": 3,
+    "primary_border_mix_percent": 12,
+    "shadow": "0 5px 16px rgba(23,45,76,.06)",
+    "version_format": "UI vX.Y.Z / A.B.C",
+    "title_weight": 700,
+    "version_weight": 500,
+    "version_min_px": 11,
+    "version_max_px": 14
   },
   "panel_identity": {
     "title": "Водоподготовка"
@@ -92,7 +97,7 @@
   },
   "shell_source": {
     "path": "templates/shell_v2/nikas-specialized-shell.js",
-    "sha256": "b7dbb84bb2f950fce75591266d6de7dbff824f4d480f455f0b8cbb0866a1c176",
+    "sha256": "398d6ff9eb5b1fb11d771e174ae7b010908c276681b1ca14e9757073ee10bb1c",
     "delivery": "vendored-build-time",
     "runtime_dependency": false
   },
@@ -158,11 +163,11 @@
     "geometry_overrides_allowed": false
   },
   "refresh_action_feedback": {
-    "version": "1.1",
+    "version": "1.3",
     "status": "required",
     "applies_when": "refresh_action_present",
     "path": "docs/NIKAS_REFRESH_ACTION_CONTRACT.md",
-    "sha256": "69f73e9d5949a2564f2bcef3059039cc339c12c9e8dfe71cfa9f24a45b78d2a8",
+    "sha256": "c778927d0a94aa48c818916f49fc295a60f51d26367c3c85ecb9bf789ee463e2",
     "busy_animation": "rotate",
     "minimum_visible_ms": 900,
     "busy_until": "request_settled_and_minimum_elapsed",
@@ -207,7 +212,14 @@
       "error_icon": "mdi:alert-circle-outline",
       "error_color": "#e53935",
       "idle_icon": "mdi:refresh",
-      "idle_color": "var(--primary-color)",
+      "idle_color": {
+        "light": "#000000",
+        "dark": "#ffffff"
+      },
+      "busy_color": {
+        "light": "#000000",
+        "dark": "#ffffff"
+      },
       "success_semantics": "all_required_requests_explicitly_succeeded",
       "retry_during_result": true,
       "cancel_previous_timer_on_retry": true,

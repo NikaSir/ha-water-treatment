@@ -1,10 +1,11 @@
-# NikaS Refresh Action Contract v1.1
+# NikaS Refresh Action Contract v1.3
 
 **Status:** REQUIRED companion to NikaS Specialized Panel UI Standard v2.2  
 **Canonical source:** `NikaSir/ha-contract-generated-ui`  
 **Applies to:** every NikaS specialized panel that exposes a refresh action  
 **Approved:** 2026-09-07  
-**Completion feedback amendment:** 2026-09-08
+**Completion feedback amendment:** 2026-09-08\
+**Theme-aware refresh arrow amendment:** 2026-11-15\
 **Machine contract:** `.nikas-ui-standard.json` → `refresh_action_feedback`
 
 This companion extends the Header, stable-rendering, data-truth and acceptance rules of [NikaS UI Standard v2.2](NIKAS_SPECIALIZED_PANEL_UI_STANDARD.md). It does not change shell geometry, require a refresh button where none was approved, or certify unchanged panels as compliant.
@@ -43,8 +44,8 @@ in the same button for 1400 ms, then restore its idle glyph and color:
 
 | State | Glyph | Glyph color | Accessible name |
 |---|---|---|---|
-| Idle | `mdi:refresh` | `var(--primary-color)` | `Обновить` |
-| Busy | rotating `mdi:refresh` | `var(--primary-color)` | `Обновление данных` |
+| Idle | `mdi:refresh` | light `#000000`, dark `#ffffff` | `Обновить` |
+| Busy | rotating `mdi:refresh` | light `#000000`, dark `#ffffff` | `Обновление данных` |
 | Success | static `mdi:check` | green `#43a047` | `Запрос обновления выполнен` |
 | Error | static `mdi:alert-circle-outline` | red `#e53935` | `Не удалось обновить данные` |
 
@@ -66,6 +67,7 @@ The canonical `44px × 44px` plaque, `25px` glyph, border, background and Header
 rail remain unchanged in every state. Only the glyph, its color and accessible
 status change for success/error. Do not add a separate check button, resize the
 control, flash the whole Header or use a panel-wide loading CSS class for the button.
+Use a white button surface in the light theme and the dark neutral surface in §2 of the UI standard in the dark theme. Verify the idle and busy glyph in both themes and preserve the mounted control during theme changes.
 
 Successful completion of the request does not by itself prove that every device supplied a new sample. Never mark preserved telemetry current, change its timestamp, or turn a status healthy merely because the animation ended. Freshness changes only when factual new data is accepted.
 
@@ -97,7 +99,7 @@ The owning panel's CI must execute its registered production entrypoint and asse
 | `context_preservation` | Refresh preserves tab/peer, scroll, zoom and unsubmitted editor changes, without page reload. |
 | `reduced_motion` | Browser-computed reduced-motion styling stops rotation but keeps visible busy feedback and ARIA. |
 | `truthful_freshness` | Completion without a new accepted sample does not invent a fresh timestamp or healthy state. |
-| `result_presentation` | Browser-computed glyph, color, accessible name and 1400 ms result interval match the table; plaque and Header geometry remain unchanged. |
+| `result_presentation` | Browser-computed idle and busy arrow color, result glyph/color, accessible name and 1400 ms result interval match the table; plaque and Header geometry remain unchanged. |
 | `retry_during_result` | A new activation clears the old result; its timer cannot clear the newer busy/result state or issue a duplicate request. |
 | `partial_failure` | One failed required subrequest prevents a green check even if all other requests succeeded. |
 | `disconnect_cleanup` | Panel removal clears result timers and isolates late completions from a replacement panel. |

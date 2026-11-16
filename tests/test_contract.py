@@ -21,15 +21,18 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(manifest['dependencies'], ['http','panel_custom','websocket_api'])
         self.assertEqual({constants['UI_VERSION'], constants['INTEGRATION_VERSION'],
             manifest['version'], panel['ui_version'], contract['ui_version'], profile['ui_version'],
-            package['version']}, {'0.2.0-beta007'})
+            package['version']}, {'0.2.0-beta009'})
         self.assertEqual(panel['panel_root'], '/dashboard-water-treatment')
         self.assertEqual(contract['entry_route'], panel['panel_root'])
         self.assertEqual(contract['tabs'], ['overview','filters','softener','quality','settings'])
         registration = ast.parse((C/'panel.py').read_text())
         metadata = next(node.value for node in registration.body if isinstance(node, ast.Assign)
                         and any(isinstance(target, ast.Name) and target.id == 'PANEL_METADATA' for target in node.targets))
-        registered_tabs = ast.literal_eval(next(value for key, value in zip(metadata.keys, metadata.values)
-                                               if isinstance(key, ast.Constant) and key.value == 'tabs'))
+        registered = {key.value: value for key, value in zip(metadata.keys, metadata.values)}
+        self.assertIn('integration_version', registered)
+        self.assertEqual(registered['integration_version'].id, 'INTEGRATION_VERSION')
+        self.assertEqual(registered['ui_version'].id, 'UI_VERSION')
+        registered_tabs = ast.literal_eval(registered['tabs'])
         self.assertEqual([tab[0] for tab in registered_tabs], contract['tabs'])
         self.assertEqual(registered_tabs[-1], ['settings', 'mdi:cog-outline', 'Настройки'])
         self.assertEqual(panel['preferred_view'], 'overview')
