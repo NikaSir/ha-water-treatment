@@ -219,7 +219,8 @@ The former rule that one-finger transform panning also provides vertical movemen
 
 ## 8. Optional connection and freshness indicator — S8 OMNI reference
 
-The two-level indicator is introduced only by an explicit product request. It is not a mandatory shell element. In particular, it is absent from `Дом сейчас` and StarLine until separately requested.
+The two-line plaque is introduced only by an explicit product request. The
+compact indicators in §8.1 are a separate presentation.
 
 ### Semantics
 
@@ -271,6 +272,36 @@ minimum-only height. It supersedes v1.0's larger `200px × 60px` plaque.
 - Flashing, pulsing, saturated full fills and repeated entrance animations are prohibited.
 - The indicator is a stable DOM subtree. State updates patch only text, classes, ARIA label and state color variables; they never remount the plaque, Hero, panel or fixed shell and never animate layout geometry.
 - The plaque remains structurally present when changing among local/cloud/reserve/offline/no-data states so that telemetry changes cannot make the page flash or shift.
+
+### 8.1 Compact connection and freshness icons
+
+When a card calls for compact indicators by its heading, show connection first
+and data freshness second.
+
+| Indicator | State | Color | Icon |
+|---|---|---|---|
+| Connection | Confirmed reachable | Green | `mdi:cloud` |
+| Connection | Confirmed outage | Orange | `mdi:cloud-off-outline` |
+| Connection | Unknown | Gray | `mdi:cloud-question-outline` |
+| Freshness | Current | Green | `mdi:check-circle-outline` |
+| Freshness | Stale | Orange | `mdi:clock-alert-outline` |
+| Freshness | Missing or unverifiable | Gray | `mdi:clock-outline` with a separate `?` badge |
+
+Use the question-mark badge only for missing or unverifiable freshness. Give
+each indicator its own accessible name with the current state. Hide the
+individual decorative glyphs from assistive technology. Provide equivalent
+text in the card or diagnostics and show the transport path when verified.
+Update mounted indicators in place.
+
+Evaluate connection and freshness independently. A reachable source with old
+measurements shows a green cloud and orange clocks. Confirmed loss of
+connection can coexist with a previously received sample that is still
+current. Calculate age from the last successful receipt of valid data.
+Receiving the same measurement again advances its receipt time. For a
+summary of required readings use the oldest receipt. A missing required
+reading or missing or unverifiable receipt time gives gray clocks with the
+question mark. Use the integration's validated freshness state or documented
+threshold.
 
 ## 9. Stable rendering and flicker prevention
 
